@@ -288,7 +288,7 @@ export default function AgendaPage() {
                   <p className="text-sm text-destructive">{errors.fecha.message}</p>
                 )}
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="horaInicio">Hora Inicio *</Label>
                   <Input
@@ -376,18 +376,28 @@ export default function AgendaPage() {
 
       {/* Selector de fecha */}
       <Card>
-        <CardContent className="p-6">
-          <div className="flex items-center justify-between">
-            <Button variant="outline" onClick={() => changeDate(-1)}>
+        <CardContent className="p-4 sm:p-6">
+          <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
+            <Button
+              variant="outline"
+              onClick={() => changeDate(-1)}
+              className="w-full sm:w-auto"
+            >
               ← Día Anterior
             </Button>
-            <div className="text-center">
-              <p className="text-lg font-semibold capitalize">{formatDate(selectedDate)}</p>
+            <div className="text-center flex-1">
+              <p className="text-base sm:text-lg font-semibold capitalize">
+                {formatDate(selectedDate)}
+              </p>
               <Button variant="link" onClick={goToToday} className="text-sm">
                 Ir a hoy
               </Button>
             </div>
-            <Button variant="outline" onClick={() => changeDate(1)}>
+            <Button
+              variant="outline"
+              onClick={() => changeDate(1)}
+              className="w-full sm:w-auto"
+            >
               Día Siguiente →
             </Button>
           </div>
@@ -419,39 +429,44 @@ export default function AgendaPage() {
         <div className="space-y-3">
           {turnos.map((turno) => (
             <Card key={turno.id}>
-              <CardContent className="p-6">
-                <div className="flex items-start justify-between">
-                  <div className="flex-1">
-                    <div className="flex items-center gap-3 mb-3">
+              <CardContent className="p-4 sm:p-6">
+                <div className="flex flex-col sm:flex-row items-start gap-4">
+                  <div className="flex-1 w-full min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
                       <span className={`px-3 py-1 rounded-full text-xs font-medium border ${estadoColors[turno.estado]}`}>
                         {estadoLabels[turno.estado]}
                       </span>
                       <span className="flex items-center gap-1 text-sm text-muted-foreground">
-                        <Clock className="h-4 w-4" />
-                        {turno.horaInicio} - {turno.horaFin}
+                        <Clock className="h-4 w-4 flex-shrink-0" />
+                        <span className="whitespace-nowrap">
+                          {turno.horaInicio} - {turno.horaFin}
+                        </span>
                       </span>
                     </div>
-                    <h3 className="font-semibold text-lg mb-2">{turno.descripcion}</h3>
+                    <h3 className="font-semibold text-base sm:text-lg mb-2 break-words">
+                      {turno.descripcion}
+                    </h3>
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2">
-                        <User className="h-4 w-4 text-muted-foreground" />
-                        <span>{getClienteNombre(turno.clienteId)}</span>
+                        <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{getClienteNombre(turno.clienteId)}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <CarIcon className="h-4 w-4 text-muted-foreground" />
-                        <span>{getVehiculoInfo(turno.vehiculoId)}</span>
+                        <CarIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                        <span className="truncate">{getVehiculoInfo(turno.vehiculoId)}</span>
                       </div>
                     </div>
                     {turno.notas && (
-                      <p className="text-sm text-muted-foreground mt-3 pt-3 border-t">
+                      <p className="text-sm text-muted-foreground mt-3 pt-3 border-t break-words">
                         {turno.notas}
                       </p>
                     )}
                   </div>
-                  <div className="flex gap-1">
+                  <div className="flex sm:flex-col gap-1 w-full sm:w-auto">
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="flex-1 sm:flex-none"
                       onClick={() => handleOpenDialog(turno)}
                     >
                       <Pencil className="h-4 w-4" />
@@ -459,6 +474,7 @@ export default function AgendaPage() {
                     <Button
                       variant="ghost"
                       size="icon"
+                      className="flex-1 sm:flex-none"
                       onClick={() => handleDelete(turno.id)}
                     >
                       <Trash2 className="h-4 w-4 text-destructive" />

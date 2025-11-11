@@ -23,9 +23,29 @@ export const clienteSchema = z.object({
     .max(200, "La dirección es muy larga")
     .optional()
     .or(z.literal("")),
+  cuit: z
+    .string()
+    .regex(/^[0-9\-]+$/, "CUIT inválido")
+    .optional()
+    .or(z.literal("")),
+  profesion: z
+    .string()
+    .max(100, "La profesión es muy larga")
+    .optional()
+    .or(z.literal("")),
+  ciudad: z
+    .string()
+    .max(100, "La ciudad es muy larga")
+    .optional()
+    .or(z.literal("")),
   notas: z
     .string()
     .max(500, "Las notas son muy largas")
+    .optional()
+    .or(z.literal("")),
+  observaciones: z
+    .string()
+    .max(500, "Las observaciones son muy largas")
     .optional()
     .or(z.literal("")),
 });

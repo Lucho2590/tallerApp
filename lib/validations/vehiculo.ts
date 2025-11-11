@@ -26,6 +26,22 @@ export const vehiculoSchema = z.object({
     .max(30, "El color es muy largo")
     .optional()
     .or(z.literal("")),
+  nChasis: z
+    .string()
+    .max(50, "El número de chasis es muy largo")
+    .optional()
+    .or(z.literal("")),
+  kilometraje: z
+    .number({ message: "El kilometraje debe ser un número" })
+    .min(0, "El kilometraje no puede ser negativo")
+    .max(9999999, "Kilometraje inválido")
+    .optional()
+    .nullable(),
+  datosAdicionales: z
+    .string()
+    .max(500, "Los datos adicionales son muy largos")
+    .optional()
+    .or(z.literal("")),
   notas: z
     .string()
     .max(500, "Las notas son muy largas")

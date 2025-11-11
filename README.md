@@ -1,4 +1,4 @@
-# Cioffi Climatización - Sistema de Gestión
+# Taller App - Sistema de Gestión
 
 Sistema de gestión completo para taller de climatización desarrollado con Next.js 14, TypeScript, Firebase y Tailwind CSS.
 

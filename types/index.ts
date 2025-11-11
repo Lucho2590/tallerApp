@@ -56,7 +56,11 @@ export interface Cliente extends BaseEntity {
   email?: string;
   telefono: string;
   direccion?: string;
+  cuit?: string;
+  profesion?: string;
+  ciudad?: string;
   notas?: string;
+  observaciones?: string;
 }
 
 // Vehículo
@@ -67,6 +71,9 @@ export interface Vehiculo extends BaseEntity {
   año: number;
   patente: string;
   color?: string;
+  nChasis?: string;
+  kilometraje?: number;
+  datosAdicionales?: string;
   notas?: string;
 }
 
