@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { PrioridadTrabajo } from "@/types";
 
 // Schema para item de trabajo
 export const trabajoItemSchema = z.object({
@@ -18,7 +19,7 @@ export const trabajoSchema = z.object({
   descuento: z.number().min(0).max(100).optional(),
   manoDeObra: z.number().min(0).optional(),
   aplicarIVA: z.boolean(),
-  prioridad: z.enum(["baja", "media", "alta", "urgente"]),
+  prioridad: z.nativeEnum(PrioridadTrabajo),
   tecnicoAsignado: z.string().optional().or(z.literal("")),
   observacionesTrabajo: z.string().optional().or(z.literal("")),
 });

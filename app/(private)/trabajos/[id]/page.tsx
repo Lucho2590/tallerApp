@@ -268,7 +268,7 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
         total: totalesCalculados.total,
         manoDeObra: data.manoDeObra || undefined,
         aplicarIVA: data.aplicarIVA,
-        prioridad: data.prioridad,
+        prioridad: data.prioridad as PrioridadTrabajo,
         tecnicoAsignado: data.tecnicoAsignado || undefined,
         observacionesTrabajo: data.observacionesTrabajo || undefined,
       };
