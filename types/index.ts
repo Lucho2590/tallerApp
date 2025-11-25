@@ -16,8 +16,14 @@ export enum EstadoTrabajo {
   PENDIENTE = "pendiente",
   EN_PROGRESO = "en_progreso",
   COMPLETADO = "completado",
-  FACTURADO = "facturado",
   CANCELADO = "cancelado",
+}
+
+export enum PrioridadTrabajo {
+  BAJA = "baja",
+  MEDIA = "media",
+  ALTA = "alta",
+  URGENTE = "urgente",
 }
 
 export enum EstadoPresupuesto {
@@ -65,16 +71,19 @@ export interface Cliente extends BaseEntity {
 
 // Vehículo
 export interface Vehiculo extends BaseEntity {
-  clienteId: string;
-  marca: string;
-  modelo: string;
-  año: number;
   patente: string;
-  color?: string;
   nChasis?: string;
+  modeloMarca: string; // Campo unificado "Toyota Corolla", "Ford Focus", etc.
+  combustible: string; // "Nafta", "Diesel", "GNC", etc.
+  color?: string;
+  año?: number;
   kilometraje?: number;
   datosAdicionales?: string;
-  notas?: string;
+  clienteId?: string; // Opcional: puede tener cliente registrado
+  nombreDueno?: string; // Opcional: puede tener solo nombre sin ser cliente
+  // Campos legacy para compatibilidad (deprecados)
+  marca?: string;
+  modelo?: string;
 }
 
 // Turno
@@ -122,25 +131,27 @@ export interface PresupuestoItem {
 
 // Trabajo/Orden de Trabajo
 export interface Trabajo extends BaseEntity {
-  numero: string;
+  numero: string; // Número de orden autogenerado
   clienteId: string;
   vehiculoId: string;
-  presupuestoId?: string;
-  turnoId?: string;
-  descripcion: string;
-  items: TrabajoItem[];
+  descripcionGeneral?: string; // Descripción general del trabajo
+  items: TrabajoItem[]; // Productos/servicios
   subtotal: number;
-  iva: number;
+  descuento?: number; // Porcentaje de descuento
+  manoDeObra?: number; // Costo de mano de obra
+  impuestos: number; // Monto de impuestos (IVA)
   total: number;
+  aplicarIVA: boolean; // Si se aplica IVA o no
   estado: EstadoTrabajo;
-  fechaInicio: Date;
+  prioridad: PrioridadTrabajo;
+  tecnicoAsignado?: string;
+  observacionesTrabajo?: string;
+  fechaInicio?: Date;
   fechaFinalizacion?: Date;
-  tecnico?: string;
-  notas?: string;
 }
 
 export interface TrabajoItem {
-  productoId?: string;
+  id: string; // ID único del item
   descripcion: string;
   cantidad: number;
   precioUnitario: number;

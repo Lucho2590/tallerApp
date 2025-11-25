@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo, useCallback } from "react";
 import { useForm, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Clock, User, Car as CarIcon } from "lucide-react";
@@ -145,39 +145,47 @@ export default function AgendaPage() {
     return vehiculo ? `${vehiculo.marca} ${vehiculo.modelo} - ${vehiculo.patente}` : "Vehículo no encontrado";
   };
 
-  const vehiculosDelCliente = vehiculos.filter(
-    (v) => v.clienteId === (clienteIdValue || selectedClienteId)
+  const vehiculosDelCliente = useMemo(
+    () => vehiculos.filter((v) => v.clienteId === (clienteIdValue || selectedClienteId)),
+    [vehiculos, clienteIdValue, selectedClienteId]
   );
 
-  const changeDate = (days: number) => {
-    const newDate = new Date(selectedDate);
-    newDate.setDate(newDate.getDate() + days);
-    setSelectedDate(newDate);
-  };
+  const changeDate = useCallback((days: number) => {
+    setSelectedDate(prevDate => {
+      const newDate = new Date(prevDate);
+      newDate.setDate(newDate.getDate() + days);
+      return newDate;
+    });
+  }, []);
 
-  const goToToday = () => {
+  const goToToday = useCallback(() => {
     setSelectedDate(new Date());
-  };
+  }, []);
 
-  const formatDate = (date: Date) => {
+  const handleDateChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const [year, month, day] = e.target.value.split("-").map(Number);
+    const newDate = new Date(year, month - 1, day);
+    setSelectedDate(newDate);
+  }, []);
+
+  const formatDate = useCallback((date: Date) => {
     return date.toLocaleDateString("es-AR", {
       weekday: "long",
       year: "numeric",
       month: "long",
       day: "numeric",
     });
-  };
+  }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-[400px]">
-        <div className="text-center">
-          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-muted-foreground">Cargando agenda...</p>
-        </div>
-      </div>
-    );
-  }
+  const formattedDateString = useMemo(
+    () => formatDate(selectedDate),
+    [selectedDate, formatDate]
+  );
+
+  const dateInputValue = useMemo(
+    () => selectedDate.toISOString().split("T")[0],
+    [selectedDate]
+  );
 
   return (
     <div className="space-y-6">
@@ -386,12 +394,22 @@ export default function AgendaPage() {
               ← Día Anterior
             </Button>
             <div className="text-center flex-1">
-              <p className="text-base sm:text-lg font-semibold capitalize">
-                {formatDate(selectedDate)}
-              </p>
-              <Button variant="link" onClick={goToToday} className="text-sm">
-                Ir a hoy
-              </Button>
+              <div className="flex flex-col items-center gap-2">
+                <p className="text-base sm:text-lg font-semibold capitalize">
+                  {formattedDateString}
+                </p>
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="date"
+                    value={dateInputValue}
+                    onChange={handleDateChange}
+                    className="w-auto text-sm"
+                  />
+                  <Button variant="outline" size="sm" onClick={goToToday}>
+                    Hoy
+                  </Button>
+                </div>
+              </div>
             </div>
             <Button
               variant="outline"
@@ -409,7 +427,14 @@ export default function AgendaPage() {
         <div className="text-center py-8 text-destructive">{error}</div>
       )}
 
-      {turnos.length === 0 ? (
+      {loading ? (
+        <Card>
+          <CardContent className="flex flex-col items-center justify-center py-16">
+            <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+            <p className="text-muted-foreground">Cargando turnos...</p>
+          </CardContent>
+        </Card>
+      ) : turnos.length === 0 ? (
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-16">
             <div className="rounded-full bg-muted p-4 mb-4">

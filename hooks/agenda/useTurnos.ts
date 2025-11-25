@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Turno } from "@/types";
 import { turnosService } from "@/services/agenda/turnosService";
 
@@ -7,7 +7,10 @@ export function useTurnos(fecha?: Date) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const fetchTurnos = async () => {
+  // Memoizar la fecha como string para evitar re-renders innecesarios
+  const fechaKey = useMemo(() => fecha?.toDateString(), [fecha?.toDateString()]);
+
+  const fetchTurnos = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -21,13 +24,13 @@ export function useTurnos(fecha?: Date) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [fechaKey]);
 
   useEffect(() => {
     fetchTurnos();
-  }, [fecha?.toDateString()]);
+  }, [fetchTurnos]);
 
-  const createTurno = async (
+  const createTurno = useCallback(async (
     turnoData: Omit<Turno, "id" | "fechaCreacion" | "fechaActualizacion">
   ) => {
     try {
@@ -38,9 +41,9 @@ export function useTurnos(fecha?: Date) {
       console.error("Error al crear turno:", err);
       throw err;
     }
-  };
+  }, [fetchTurnos]);
 
-  const updateTurno = async (
+  const updateTurno = useCallback(async (
     id: string,
     turnoData: Partial<Omit<Turno, "id" | "fechaCreacion" | "fechaActualizacion">>
   ) => {
@@ -51,9 +54,9 @@ export function useTurnos(fecha?: Date) {
       console.error("Error al actualizar turno:", err);
       throw err;
     }
-  };
+  }, [fetchTurnos]);
 
-  const deleteTurno = async (id: string) => {
+  const deleteTurno = useCallback(async (id: string) => {
     try {
       await turnosService.delete(id);
       await fetchTurnos();
@@ -61,7 +64,7 @@ export function useTurnos(fecha?: Date) {
       console.error("Error al eliminar turno:", err);
       throw err;
     }
-  };
+  }, [fetchTurnos]);
 
   return {
     turnos,

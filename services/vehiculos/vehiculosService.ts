@@ -16,6 +16,17 @@ import { Vehiculo } from "@/types";
 
 const COLLECTION_NAME = "vehiculos";
 
+// Helper para limpiar valores undefined de un objeto (Firebase no los acepta)
+const cleanUndefined = <T extends Record<string, any>>(obj: T): T => {
+  const cleaned = {} as T;
+  Object.keys(obj).forEach((key) => {
+    if (obj[key] !== undefined) {
+      cleaned[key as keyof T] = obj[key];
+    }
+  });
+  return cleaned;
+};
+
 export const vehiculosService = {
   // Obtener todos los vehículos
   async getAll(): Promise<Vehiculo[]> {
@@ -92,11 +103,12 @@ export const vehiculosService = {
   ): Promise<string> {
     try {
       const now = Timestamp.now();
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+      const cleanedData = cleanUndefined({
         ...vehiculoData,
         fechaCreacion: now,
         fechaActualizacion: now,
       });
+      const docRef = await addDoc(collection(db, COLLECTION_NAME), cleanedData);
       return docRef.id;
     } catch (error) {
       console.error("Error al crear vehículo:", error);
@@ -111,10 +123,11 @@ export const vehiculosService = {
   ): Promise<void> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
-      await updateDoc(docRef, {
+      const cleanedData = cleanUndefined({
         ...vehiculoData,
         fechaActualizacion: Timestamp.now(),
       });
+      await updateDoc(docRef, cleanedData);
     } catch (error) {
       console.error("Error al actualizar vehículo:", error);
       throw error;
