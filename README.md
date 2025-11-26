@@ -232,17 +232,39 @@ Este proyecto está optimizado para deploy en **Vercel**, que ofrece soporte com
 - **Moderador**: Permisos extendidos (preparado para futuro)
 - **Admin**: Acceso administrativo total (preparado para futuro)
 
-## Próximas Funcionalidades (No incluidas en MVP)
+## Estado Actual del Proyecto
 
-- Módulo de Presupuestos
-- Módulo de Órdenes de Trabajo
-- Módulo de Productos e Inventario
-- Módulo de Caja y Movimientos
-- Dashboard con métricas dinámicas
+### ✅ Módulos Completos (MVP)
+- **Dashboard** - Métricas en tiempo real (turnos, vehículos, clientes, trabajos)
+- **Agenda** - Sistema de turnos con datepicker y gestión de estados
+- **Clientes** - CRUD completo con tabla profesional y búsqueda avanzada
+- **Vehículos** - Gestión flexible de dueños e historial de servicios
+- **Trabajos/Órdenes** - CRUD completo con cálculos automáticos, estados y prioridades
+
+### 🔨 Módulos en Construcción
+- **Presupuestos** - Página placeholder preparada
+- **Productos** - Página placeholder preparada
+- **Caja** - Página placeholder preparada
+
+### 🚀 Próximas Funcionalidades
 - Calendario visual interactivo
 - Reportes y exportación de datos
 - Sistema de notificaciones
-- Búsqueda y filtros avanzados
+- Gestión de inventario de productos
+- Sistema de presupuestos convertibles a trabajos
+- Módulo de caja con ingresos/egresos
+
+## 🏢 Arquitectura Multitenant
+
+¿Pensando en convertir esta app en un SaaS para múltiples talleres?
+
+**📖 Consulta [MULTITENANT.md](./MULTITENANT.md)** para una guía completa sobre:
+- Qué es multitenant y cuándo necesitás implementarlo
+- Estimación de esfuerzo (10-15 días)
+- Estrategias de migración (Big Bang vs Gradual)
+- Cambios necesarios en el código
+- Reglas de seguridad Firebase
+- Recomendaciones basadas en tu caso de uso
 
 ## Soporte
 
