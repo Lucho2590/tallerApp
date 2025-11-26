@@ -15,7 +15,7 @@ export const trabajoSchema = z.object({
   clienteId: z.string().min(1, "Cliente es requerido"),
   vehiculoId: z.string().min(1, "Vehículo es requerido"),
   descripcionGeneral: z.string().optional().or(z.literal("")),
-  items: z.array(trabajoItemSchema).min(1, "Debe agregar al menos un producto o servicio"),
+  items: z.array(trabajoItemSchema),
   descuento: z.number().min(0).max(100).optional(),
   manoDeObra: z.number().min(0).optional(),
   aplicarIVA: z.boolean(),

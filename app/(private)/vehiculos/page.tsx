@@ -16,12 +16,15 @@ import {
   ChevronRight,
   Users,
   UserPlus,
+  Wrench,
+  FileText,
 } from "lucide-react";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
 import { useClientes } from "@/hooks/clientes/useClientes";
+import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { vehiculoSchema, type VehiculoFormData } from "@/lib/validations/vehiculo";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
-import { Vehiculo } from "@/types";
+import { Vehiculo, EstadoTrabajo } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -76,6 +79,7 @@ function VehiculoRow({
   onDeleteVehiculo,
   onCambiarDueno,
   clientes,
+  trabajosVehiculo,
 }: {
   vehiculo: Vehiculo;
   isExpanded: boolean;
@@ -84,6 +88,7 @@ function VehiculoRow({
   onDeleteVehiculo: () => void;
   onCambiarDueno: () => void;
   clientes: any[];
+  trabajosVehiculo: any[];
 }) {
   const getDuenoInfo = () => {
     if (vehiculo.clienteId) {
@@ -250,11 +255,83 @@ function VehiculoRow({
                   </div>
                 )}
 
-                {/* Placeholder para historial de reparaciones */}
+                {/* Historial de reparaciones */}
                 <div className="pt-3 border-t">
-                  <p className="text-sm text-muted-foreground italic">
-                    Historial de reparaciones disponible próximamente
-                  </p>
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium flex items-center gap-2">
+                      <Wrench className="h-4 w-4" />
+                      Historial de Servicios
+                    </h4>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-7 text-xs"
+                      onClick={() => {
+                        // TODO: Implementar navegación a historial completo
+                        alert("Función disponible próximamente");
+                      }}
+                    >
+                      <FileText className="h-3 w-3 mr-1" />
+                      Ver Historial Completo
+                    </Button>
+                  </div>
+
+                  {trabajosVehiculo.length === 0 ? (
+                    <p className="text-sm text-muted-foreground italic">
+                      No hay servicios registrados para este vehículo
+                    </p>
+                  ) : (
+                    <div className="space-y-2">
+                      {trabajosVehiculo.slice(0, 3).map((trabajo) => (
+                        <div
+                          key={trabajo.id}
+                          className="flex items-center justify-between p-2 border rounded bg-white"
+                        >
+                          <div className="flex items-center gap-2">
+                            <Wrench className="h-3 w-3 text-muted-foreground" />
+                            <div>
+                              <p className="text-xs font-medium font-mono">
+                                {trabajo.numero}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                {trabajo.descripcionGeneral || "Sin descripción"}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xs font-medium">
+                              ${trabajo.total.toFixed(2)}
+                            </span>
+                            <Badge
+                              variant="secondary"
+                              className={`text-xs ${
+                                trabajo.estado === EstadoTrabajo.COMPLETADO
+                                  ? "bg-green-100 text-green-800"
+                                  : trabajo.estado === EstadoTrabajo.EN_PROGRESO
+                                  ? "bg-blue-100 text-blue-800"
+                                  : trabajo.estado === EstadoTrabajo.CANCELADO
+                                  ? "bg-red-100 text-red-800"
+                                  : "bg-gray-100 text-gray-800"
+                              }`}
+                            >
+                              {trabajo.estado === EstadoTrabajo.COMPLETADO
+                                ? "Completado"
+                                : trabajo.estado === EstadoTrabajo.EN_PROGRESO
+                                ? "En Progreso"
+                                : trabajo.estado === EstadoTrabajo.CANCELADO
+                                ? "Cancelado"
+                                : "Pendiente"}
+                            </Badge>
+                          </div>
+                        </div>
+                      ))}
+                      {trabajosVehiculo.length > 3 && (
+                        <p className="text-xs text-muted-foreground text-center pt-1">
+                          Y {trabajosVehiculo.length - 3} servicio(s) más...
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
@@ -269,6 +346,7 @@ export default function VehiculosPage() {
   const { vehiculos, loading, error, createVehiculo, updateVehiculo, deleteVehiculo } =
     useVehiculos();
   const { clientes, createCliente } = useClientes();
+  const { trabajos } = useTrabajos();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDuenoDialogOpen, setIsDuenoDialogOpen] = useState(false);
@@ -596,6 +674,12 @@ export default function VehiculosPage() {
             ) : (
               vehiculosFiltrados.map((vehiculo) => {
                 const isExpanded = expandedRows.has(vehiculo.id);
+                const trabajosVehiculo = trabajos.filter(
+                  (t) => t.vehiculoId === vehiculo.id
+                ).sort((a, b) => {
+                  // Ordenar por fecha de creación descendente (más recientes primero)
+                  return new Date(b.fechaCreacion).getTime() - new Date(a.fechaCreacion).getTime();
+                });
 
                 return (
                   <VehiculoRow
@@ -607,6 +691,7 @@ export default function VehiculosPage() {
                     onDeleteVehiculo={() => handleEliminarVehiculo(vehiculo.id)}
                     onCambiarDueno={() => abrirCambiarDueno(vehiculo)}
                     clientes={clientes}
+                    trabajosVehiculo={trabajosVehiculo}
                   />
                 );
               })

@@ -136,23 +136,35 @@ export default function NuevoTrabajoPage() {
     try {
       const numeroOrden = generarNumeroOrden();
 
-      const trabajoData = {
+      const trabajoData: any = {
         numero: numeroOrden,
         clienteId: data.clienteId,
         vehiculoId: data.vehiculoId,
-        descripcionGeneral: data.descripcionGeneral || undefined,
         estado: EstadoTrabajo.PENDIENTE,
         items: data.items,
         subtotal: totalesCalculados.subtotal,
-        descuento: data.descuento || undefined,
         impuestos: totalesCalculados.montoImpuestos,
         total: totalesCalculados.total,
-        manoDeObra: data.manoDeObra || undefined,
         aplicarIVA: data.aplicarIVA,
         prioridad: data.prioridad,
-        tecnicoAsignado: data.tecnicoAsignado || undefined,
-        observacionesTrabajo: data.observacionesTrabajo || undefined,
       };
+
+      // Solo agregar campos opcionales si tienen valor
+      if (data.descripcionGeneral && data.descripcionGeneral.trim()) {
+        trabajoData.descripcionGeneral = data.descripcionGeneral;
+      }
+      if (data.descuento && data.descuento > 0) {
+        trabajoData.descuento = data.descuento;
+      }
+      if (data.manoDeObra && data.manoDeObra > 0) {
+        trabajoData.manoDeObra = data.manoDeObra;
+      }
+      if (data.tecnicoAsignado && data.tecnicoAsignado.trim()) {
+        trabajoData.tecnicoAsignado = data.tecnicoAsignado;
+      }
+      if (data.observacionesTrabajo && data.observacionesTrabajo.trim()) {
+        trabajoData.observacionesTrabajo = data.observacionesTrabajo;
+      }
 
       await createTrabajo(trabajoData);
       router.push("/trabajos");
