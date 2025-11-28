@@ -209,7 +209,7 @@ export default function NuevoTrabajoPage() {
       </div>
 
       {/* Formulario */}
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-card rounded-lg border p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Información básica */}
@@ -354,7 +354,7 @@ export default function NuevoTrabajoPage() {
 
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-xs text-gray-600 w-8">Cant:</label>
+                      <label className="text-xs text-muted-foreground w-8">Cant:</label>
                       <Input
                         type="number"
                         placeholder="1"
@@ -368,7 +368,7 @@ export default function NuevoTrabajoPage() {
                       />
                     </div>
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-xs text-gray-600 w-8">$:</label>
+                      <label className="text-xs text-muted-foreground w-8">$:</label>
                       <Input
                         type="number"
                         placeholder="0"
@@ -398,7 +398,6 @@ export default function NuevoTrabajoPage() {
                           !descripcionProducto.trim() ||
                           precioUnitarioProducto <= 0
                         }
-                        className="bg-blue-600 hover:bg-blue-700"
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -412,7 +411,7 @@ export default function NuevoTrabajoPage() {
                     Productos/Servicios Agregados:
                   </h5>
 
-                  <div className="border border-green-400 bg-green-50 rounded p-4 min-h-40 max-h-60 overflow-y-auto">
+                  <div className="border rounded p-4 min-h-40 max-h-60 overflow-y-auto bg-muted/30">
                     {fields.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <p className="text-sm">No hay productos agregados</p>

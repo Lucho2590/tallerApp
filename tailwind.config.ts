@@ -10,6 +10,35 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
+        // Paleta personalizada - Dark Mode
+        negro: "#000000",
+        charcoal: "#121212",
+        "gris-metal": "#1E1E1E",
+        "gris-acero": "#2C2C2C",
+        "gris-claro": "#BDBDBD",
+
+        // Paleta personalizada - Light Mode
+        "gris-claro-light": "#F5F5F5",
+        "gris-suave": "#E0E0E0",
+        "gris-acero-light": "#BDBDBD",
+        grafito: "#757575",
+
+        // Acentos (compartidos)
+        "naranja-primario": "#F57C00",
+        "naranja-hover": "#FB8C00",
+        "naranja-acento": "#FF9800",
+        ambar: "#FFC107",
+
+        // Textos Dark
+        blanco: "#FFFFFF",
+        "gris-texto": "#E0E0E0",
+        "gris-medio": "#9E9E9E",
+
+        // Textos Light
+        "negro-texto": "#000000",
+        "gris-oscuro": "#212121",
+
+        // Tokens shadcn
         background: "hsl(var(--background))",
         foreground: "hsl(var(--foreground))",
         card: {

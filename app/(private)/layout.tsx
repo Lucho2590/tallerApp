@@ -5,6 +5,7 @@ import { Menu } from "lucide-react";
 import { ProtectedRoute } from "@/components/auth/protected-route";
 import { Sidebar } from "@/components/layout/sidebar";
 import { Button } from "@/components/ui/button";
+import { ThemeToggle } from "@/components/theme-toggle";
 
 export default function PrivateLayout({
   children,
@@ -28,7 +29,8 @@ export default function PrivateLayout({
             >
               <Menu className="h-6 w-6" />
             </Button>
-            <h1 className="text-lg font-semibold">Taller App</h1>
+            <h1 className="text-lg font-semibold flex-1">Taller App</h1>
+            <ThemeToggle />
           </header>
 
           {/* Main Content */}
