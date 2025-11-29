@@ -41,46 +41,52 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       setLoading(true);
       setError(null);
 
-      // TODO: Implementar en Fase 2
-      // Por ahora, crear un tenant mock para que la app siga funcionando
-      const mockTenant: Tenant = {
-        id: "default-tenant",
-        name: "Mi Taller",
-        email: user?.email || "",
-        plan: "basic" as any,
-        active: true,
-        config: {
-          maxUsers: 5,
-          maxClients: 500,
-          maxVehicles: 500,
-          maxMonthlyJobs: 100,
-          modules: [] as any,
-          features: [] as any,
-        },
-        createdAt: new Date() as any,
-        updatedAt: new Date() as any,
-        timezone: "America/Argentina/Buenos_Aires",
-        locale: "es-AR",
-        currency: "ARS",
-      };
+      if (!user) {
+        setLoading(false);
+        return;
+      }
 
-      setTenants([mockTenant]);
-      setCurrentTenant(mockTenant);
-      setCurrentRole("admin" as TenantRole);
+      // Get user's tenant IDs from their document
+      const userTenants = user.tenants || {};
+      const tenantIds = Object.keys(userTenants);
+
+      if (tenantIds.length === 0) {
+        // User has no tenants - will need onboarding
+        setTenants([]);
+        setCurrentTenant(null);
+        setCurrentRole(null);
+        setLoading(false);
+        return;
+      }
+
+      // Load full tenant documents
+      const { tenantsService } = await import("@/services/tenants/tenantsService");
+      const loadedTenants: Tenant[] = [];
+
+      for (const tenantId of tenantIds) {
+        const tenant = await tenantsService.getById(tenantId);
+        if (tenant) {
+          loadedTenants.push(tenant);
+        }
+      }
+
+      setTenants(loadedTenants);
+
+      // Set current tenant from user's currentTenantId or first tenant
+      let currentTenant = loadedTenants.find(t => t.id === user.currentTenantId);
+      if (!currentTenant && loadedTenants.length > 0) {
+        currentTenant = loadedTenants[0];
+      }
+
+      if (currentTenant) {
+        setCurrentTenant(currentTenant);
+
+        // Get user's role in current tenant
+        const relation = userTenants[currentTenant.id];
+        setCurrentRole(relation?.role || null);
+      }
+
       setLoading(false);
-
-      // TODO: Fase 2 - Cargar tenants reales desde Firebase
-      // const userTenants = await tenantsService.getUserTenants(user.id);
-      // setTenants(userTenants);
-      //
-      // // Set current tenant from localStorage or first tenant
-      // const savedTenantId = localStorage.getItem("currentTenantId");
-      // const currentTenant = userTenants.find(t => t.id === savedTenantId) || userTenants[0];
-      // setCurrentTenant(currentTenant);
-      //
-      // // Get user's role in current tenant
-      // const relation = user.tenants?.find(t => t.tenantId === currentTenant.id);
-      // setCurrentRole(relation?.role || null);
     } catch (err) {
       console.error("Error loading tenants:", err);
       setError("Error al cargar los talleres");
@@ -92,6 +98,10 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
     try {
       setError(null);
 
+      if (!user) {
+        throw new Error("Usuario no autenticado");
+      }
+
       const tenant = tenants.find((t) => t.id === tenantId);
       if (!tenant) {
         throw new Error("Taller no encontrado");
@@ -99,19 +109,14 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
       setCurrentTenant(tenant);
 
-      // Save to localStorage
-      localStorage.setItem("currentTenantId", tenantId);
-
-      // TODO: Fase 2 - Actualizar en Firebase
-      // await updateDoc(doc(db, "users", user!.id), {
-      //   currentTenantId: tenantId,
-      //   updatedAt: serverTimestamp(),
-      // });
-
       // Update current role
-      // TODO: Fase 2 - Get role from user.tenants
-      // const relation = user?.tenants?.find(t => t.tenantId === tenantId);
-      // setCurrentRole(relation?.role || null);
+      const userTenants = user.tenants || {};
+      const relation = userTenants[tenantId];
+      setCurrentRole(relation?.role || null);
+
+      // Update in Firebase
+      const { usersService } = await import("@/services/users/usersService");
+      await usersService.switchTenant(user.id, tenantId);
     } catch (err) {
       console.error("Error switching tenant:", err);
       setError("Error al cambiar de taller");
