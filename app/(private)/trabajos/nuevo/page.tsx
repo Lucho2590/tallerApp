@@ -14,6 +14,7 @@ import {
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
+import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
 import { trabajoSchema, type TrabajoFormData } from "@/lib/validations/trabajo";
 import { TrabajoItem, PrioridadTrabajo, EstadoTrabajo } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -37,6 +38,7 @@ import {
 
 export default function NuevoTrabajoPage() {
   const router = useRouter();
+  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const { createTrabajo, generarNumeroOrden } = useTrabajos();
   const { clientes } = useClientes();
   const { vehiculos } = useVehiculos();
@@ -132,11 +134,18 @@ export default function NuevoTrabajoPage() {
 
   // Guardar trabajo
   const onSubmit = async (data: TrabajoFormData) => {
+    // 🏢 VALIDAR QUE HAYA TENANT
+    if (!currentTenant) {
+      alert("Error: No hay un taller seleccionado");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const numeroOrden = generarNumeroOrden();
 
       const trabajoData: any = {
+        tenantId: currentTenant.id, // 🏢 AGREGAR TENANT ID
         numero: numeroOrden,
         clienteId: data.clienteId,
         vehiculoId: data.vehiculoId,

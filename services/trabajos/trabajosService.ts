@@ -31,7 +31,7 @@ const cleanUndefined = <T extends Record<string, any>>(obj: T): T => {
 let ordenCounter = 1;
 
 export const trabajosService = {
-  // Generar número de orden único
+  // Generar número de orden único (TODO: mejorar para multitenant)
   generarNumeroOrden(): string {
     const fecha = new Date();
     const año = fecha.getFullYear();
@@ -40,11 +40,12 @@ export const trabajosService = {
     return `OT-${año}${mes}-${numero}`;
   },
 
-  // Obtener todos los trabajos
-  async getAll(): Promise<Trabajo[]> {
+  // Obtener todos los trabajos (FILTRADO POR TENANT)
+  async getAll(tenantId: string): Promise<Trabajo[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         orderBy("fechaCreacion", "desc")
       );
       const querySnapshot = await getDocs(q);
@@ -65,11 +66,12 @@ export const trabajosService = {
     }
   },
 
-  // Obtener trabajos por cliente
-  async getByClienteId(clienteId: string): Promise<Trabajo[]> {
+  // Obtener trabajos por cliente (FILTRADO POR TENANT)
+  async getByClienteId(clienteId: string, tenantId: string): Promise<Trabajo[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         where("clienteId", "==", clienteId),
         orderBy("fechaCreacion", "desc")
       );
@@ -91,11 +93,12 @@ export const trabajosService = {
     }
   },
 
-  // Obtener trabajos por vehículo
-  async getByVehiculoId(vehiculoId: string): Promise<Trabajo[]> {
+  // Obtener trabajos por vehículo (FILTRADO POR TENANT)
+  async getByVehiculoId(vehiculoId: string, tenantId: string): Promise<Trabajo[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         where("vehiculoId", "==", vehiculoId),
         orderBy("fechaCreacion", "desc")
       );
@@ -117,14 +120,21 @@ export const trabajosService = {
     }
   },
 
-  // Obtener un trabajo por ID
-  async getById(id: string): Promise<Trabajo | null> {
+  // Obtener un trabajo por ID (VERIFICAR TENANT)
+  async getById(id: string, tenantId: string): Promise<Trabajo | null> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // 🏢 VERIFICAR QUE PERTENECE AL TENANT
+        if (data.tenantId !== tenantId) {
+          console.warn(`Trabajo ${id} no pertenece al tenant ${tenantId}`);
+          return null;
+        }
+
         return {
           id: docSnap.id,
           ...data,
@@ -141,11 +151,16 @@ export const trabajosService = {
     }
   },
 
-  // Crear un nuevo trabajo
+  // Crear un nuevo trabajo (INCLUIR TENANT ID)
   async create(
     trabajoData: Omit<Trabajo, "id" | "fechaCreacion" | "fechaActualizacion">
   ): Promise<string> {
     try {
+      // 🏢 Verificar que tenantId está presente
+      if (!trabajoData.tenantId) {
+        throw new Error("tenantId es requerido para crear un trabajo");
+      }
+
       const now = Timestamp.now();
       const cleanedData = cleanUndefined({
         ...trabajoData,
@@ -166,12 +181,19 @@ export const trabajosService = {
     }
   },
 
-  // Actualizar un trabajo
+  // Actualizar un trabajo (VERIFICAR TENANT)
   async update(
     id: string,
-    trabajoData: Partial<Omit<Trabajo, "id" | "fechaCreacion" | "fechaActualizacion">>
+    trabajoData: Partial<Omit<Trabajo, "id" | "fechaCreacion" | "fechaActualizacion">>,
+    tenantId: string
   ): Promise<void> {
     try {
+      // 🏢 Primero verificar que el trabajo pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Trabajo no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       const cleanedData = cleanUndefined({
         ...trabajoData,
@@ -190,9 +212,15 @@ export const trabajosService = {
     }
   },
 
-  // Eliminar un trabajo
-  async delete(id: string): Promise<void> {
+  // Eliminar un trabajo (VERIFICAR TENANT)
+  async delete(id: string, tenantId: string): Promise<void> {
     try {
+      // 🏢 Primero verificar que el trabajo pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Trabajo no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
     } catch (error) {
@@ -201,12 +229,19 @@ export const trabajosService = {
     }
   },
 
-  // Cambiar estado de un trabajo
+  // Cambiar estado de un trabajo (VERIFICAR TENANT)
   async cambiarEstado(
     id: string,
-    nuevoEstado: Trabajo["estado"]
+    nuevoEstado: Trabajo["estado"],
+    tenantId: string
   ): Promise<void> {
     try {
+      // 🏢 Primero verificar que el trabajo pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Trabajo no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       const updates: any = {
         estado: nuevoEstado,

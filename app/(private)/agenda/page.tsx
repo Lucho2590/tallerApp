@@ -7,6 +7,7 @@ import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Clock, User, Car as Car
 import { useTurnos } from "@/hooks/agenda/useTurnos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
+import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
 import { turnoSchema, type TurnoFormData } from "@/lib/validations/turno";
 import { Turno, EstadoTurno } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -45,6 +46,7 @@ const estadoLabels = {
 };
 
 export default function AgendaPage() {
+  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { turnos, loading, error, createTurno, updateTurno, deleteTurno } = useTurnos(selectedDate);
   const { clientes } = useClientes();
@@ -110,12 +112,19 @@ export default function AgendaPage() {
   };
 
   const onSubmit = async (data: TurnoFormData) => {
+    // 🏢 VALIDAR QUE HAYA TENANT
+    if (!currentTenant) {
+      alert("Error: No hay un taller seleccionado");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       if (editingTurno) {
         await updateTurno(editingTurno.id, data);
       } else {
-        await createTurno(data);
+        // 🏢 AGREGAR TENANT ID AL CREAR TURNO
+        await createTurno({ ...data, tenantId: currentTenant.id });
       }
       handleCloseDialog();
     } catch (err) {

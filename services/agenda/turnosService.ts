@@ -17,11 +17,12 @@ import { Turno } from "@/types";
 const COLLECTION_NAME = "turnos";
 
 export const turnosService = {
-  // Obtener todos los turnos
-  async getAll(): Promise<Turno[]> {
+  // Obtener todos los turnos (FILTRADO POR TENANT)
+  async getAll(tenantId: string): Promise<Turno[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         orderBy("fecha", "desc")
       );
       const querySnapshot = await getDocs(q);
@@ -41,8 +42,8 @@ export const turnosService = {
     }
   },
 
-  // Obtener turnos por fecha
-  async getByDate(fecha: Date): Promise<Turno[]> {
+  // Obtener turnos por fecha (FILTRADO POR TENANT)
+  async getByDate(fecha: Date, tenantId: string): Promise<Turno[]> {
     try {
       const startOfDay = new Date(fecha);
       startOfDay.setHours(0, 0, 0, 0);
@@ -51,6 +52,7 @@ export const turnosService = {
 
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         where("fecha", ">=", Timestamp.fromDate(startOfDay)),
         where("fecha", "<=", Timestamp.fromDate(endOfDay)),
         orderBy("fecha", "asc"),
@@ -73,14 +75,21 @@ export const turnosService = {
     }
   },
 
-  // Obtener un turno por ID
-  async getById(id: string): Promise<Turno | null> {
+  // Obtener un turno por ID (VERIFICAR TENANT)
+  async getById(id: string, tenantId: string): Promise<Turno | null> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // 🏢 VERIFICAR QUE PERTENECE AL TENANT
+        if (data.tenantId !== tenantId) {
+          console.warn(`Turno ${id} no pertenece al tenant ${tenantId}`);
+          return null;
+        }
+
         return {
           id: docSnap.id,
           ...data,
@@ -96,11 +105,16 @@ export const turnosService = {
     }
   },
 
-  // Crear un nuevo turno
+  // Crear un nuevo turno (INCLUIR TENANT ID)
   async create(
     turnoData: Omit<Turno, "id" | "fechaCreacion" | "fechaActualizacion">
   ): Promise<string> {
     try {
+      // 🏢 Verificar que tenantId está presente
+      if (!turnoData.tenantId) {
+        throw new Error("tenantId es requerido para crear un turno");
+      }
+
       const now = Timestamp.now();
       const docRef = await addDoc(collection(db, COLLECTION_NAME), {
         ...turnoData,
@@ -115,12 +129,19 @@ export const turnosService = {
     }
   },
 
-  // Actualizar un turno
+  // Actualizar un turno (VERIFICAR TENANT)
   async update(
     id: string,
-    turnoData: Partial<Omit<Turno, "id" | "fechaCreacion" | "fechaActualizacion">>
+    turnoData: Partial<Omit<Turno, "id" | "fechaCreacion" | "fechaActualizacion">>,
+    tenantId: string
   ): Promise<void> {
     try {
+      // 🏢 Primero verificar que el turno pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Turno no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       const updateData: any = {
         ...turnoData,
@@ -136,9 +157,15 @@ export const turnosService = {
     }
   },
 
-  // Eliminar un turno
-  async delete(id: string): Promise<void> {
+  // Eliminar un turno (VERIFICAR TENANT)
+  async delete(id: string, tenantId: string): Promise<void> {
     try {
+      // 🏢 Primero verificar que el turno pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Turno no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
     } catch (error) {

@@ -231,15 +231,15 @@ function VehiculoRow({
             <div className="bg-muted/20 p-4 border-t">
               <div className="space-y-3">
                 {/* Información adicional */}
-                {(vehiculo.datosAdicionales || vehiculo.nChasis) && (
+                {(vehiculo.datosAdicionales || vehiculo.vin) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehiculo.nChasis && (
+                    {vehiculo.vin && (
                       <div>
                         <h4 className="text-sm font-medium mb-1">
-                          Número de Chasis
+                          VIN
                         </h4>
                         <p className="text-sm text-muted-foreground font-mono">
-                          {vehiculo.nChasis}
+                          {vehiculo.vin}
                         </p>
                       </div>
                     )}
@@ -363,7 +363,7 @@ export default function VehiculosPage() {
     resolver: zodResolver(vehiculoSchema),
     defaultValues: {
       patente: "",
-      nChasis: "",
+      vin: "",
       modeloMarca: "",
       combustible: "",
       color: "",
@@ -403,7 +403,7 @@ export default function VehiculosPage() {
     return vehiculos.filter((vehiculo) => {
       const textoCompleto = [
         vehiculo.patente,
-        vehiculo.nChasis,
+        vehiculo.vin,
         vehiculo.modeloMarca,
         vehiculo.marca,
         vehiculo.modelo,
@@ -442,7 +442,7 @@ export default function VehiculosPage() {
     setEditingVehiculo(null);
     form.reset({
       patente: "",
-      nChasis: "",
+      vin: "",
       modeloMarca: "",
       combustible: "",
       color: "",
@@ -459,7 +459,7 @@ export default function VehiculosPage() {
     setEditingVehiculo(vehiculo);
     form.reset({
       patente: vehiculo.patente,
-      nChasis: vehiculo.nChasis || "",
+      vin: vehiculo.vin || "",
       modeloMarca: vehiculo.modeloMarca || `${vehiculo.marca || ""} ${vehiculo.modelo || ""}`.trim(),
       combustible: vehiculo.combustible || "",
       color: vehiculo.color || "",
@@ -752,7 +752,7 @@ export default function VehiculosPage() {
 
                 <FormField
                   control={form.control}
-                  name="nChasis"
+                  name="vin"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>N° de Chasis</FormLabel>
