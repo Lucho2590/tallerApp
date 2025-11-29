@@ -64,7 +64,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
       const loadedTenants: Tenant[] = [];
 
       for (const tenantId of tenantIds) {
-        const tenant = await tenantsService.getById(tenantId);
+        const tenant = await tenantsService.getTenantById(tenantId);
         if (tenant) {
           loadedTenants.push(tenant);
         }
@@ -82,7 +82,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         setCurrentTenant(currentTenant);
 
         // Get user's role in current tenant
-        const relation = userTenants[currentTenant.id];
+        const relation = (userTenants as Record<string, any>)[currentTenant.id];
         setCurrentRole(relation?.role || null);
       }
 
@@ -111,7 +111,7 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
 
       // Update current role
       const userTenants = user.tenants || {};
-      const relation = userTenants[tenantId];
+      const relation = (userTenants as Record<string, any>)[tenantId];
       setCurrentRole(relation?.role || null);
 
       // Update in Firebase
