@@ -48,25 +48,25 @@ function EstadoBadge({ estado }: { estado: EstadoTrabajo }) {
         return {
           icon: Clock,
           text: "Pendiente",
-          className: "bg-gray-100 text-gray-800 border-gray-300",
+          className: "bg-muted text-muted-foreground border-border",
         };
       case EstadoTrabajo.EN_PROGRESO:
         return {
           icon: Play,
           text: "En Progreso",
-          className: "bg-blue-100 text-blue-800 border-blue-300",
+          className: "bg-primary/10 text-primary border-primary/20",
         };
       case EstadoTrabajo.COMPLETADO:
         return {
           icon: CheckCircle,
           text: "Completado",
-          className: "bg-green-100 text-green-800 border-green-300",
+          className: "bg-green-100 text-green-800 border-green-300 dark:bg-green-900/30 dark:text-green-400 dark:border-green-800",
         };
       case EstadoTrabajo.CANCELADO:
         return {
           icon: XCircle,
           text: "Cancelado",
-          className: "bg-red-100 text-red-800 border-red-300",
+          className: "bg-red-100 text-red-800 border-red-300 dark:bg-red-900/30 dark:text-red-400 dark:border-red-800",
         };
     }
   };
@@ -350,7 +350,7 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
       </div>
 
       {/* Formulario */}
-      <div className="bg-white rounded-lg border p-6">
+      <div className="bg-card rounded-lg border p-6">
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
             {/* Información de la orden (readonly) */}
@@ -358,15 +358,15 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
               <h4 className="text-sm font-medium">Información de la Orden</h4>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="p-3 bg-gray-50 rounded">
-                  <label className="text-sm font-medium text-gray-600">
+                <div className="p-3 bg-muted/50 rounded">
+                  <label className="text-sm font-medium text-muted-foreground">
                     Cliente:
                   </label>
                   <p className="text-sm">{getNombreCliente(trabajo.clienteId)}</p>
                 </div>
 
-                <div className="p-3 bg-gray-50 rounded">
-                  <label className="text-sm font-medium text-gray-600">
+                <div className="p-3 bg-muted/50 rounded">
+                  <label className="text-sm font-medium text-muted-foreground">
                     Vehículo:
                   </label>
                   <p className="text-sm">
@@ -376,8 +376,8 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
                   </p>
                 </div>
 
-                <div className="p-3 bg-gray-50 rounded">
-                  <label className="text-sm font-medium text-gray-600">
+                <div className="p-3 bg-muted/50 rounded">
+                  <label className="text-sm font-medium text-muted-foreground">
                     Estado:
                   </label>
                   <div className="flex items-center gap-2 mt-1">
@@ -503,7 +503,7 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
 
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-xs text-gray-600 w-8">Cant:</label>
+                      <label className="text-xs text-muted-foreground w-8">Cant:</label>
                       <Input
                         type="number"
                         placeholder="1"
@@ -517,7 +517,7 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
                       />
                     </div>
                     <div className="flex items-center gap-2 flex-1">
-                      <label className="text-xs text-gray-600 w-8">$:</label>
+                      <label className="text-xs text-muted-foreground w-8">$:</label>
                       <Input
                         type="number"
                         placeholder="0"
@@ -547,7 +547,6 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
                           !descripcionProducto.trim() ||
                           precioUnitarioProducto <= 0
                         }
-                        className="bg-blue-600 hover:bg-blue-700"
                       >
                         <Plus className="h-4 w-4" />
                       </Button>
@@ -561,7 +560,7 @@ export default function EditarTrabajoPage({ params }: { params: { id: string } }
                     Productos/Servicios Agregados:
                   </h5>
 
-                  <div className="border border-green-400 bg-green-50 rounded p-4 min-h-40 max-h-60 overflow-y-auto">
+                  <div className="border rounded p-4 min-h-40 max-h-60 overflow-y-auto bg-muted/30">
                     {fields.length === 0 ? (
                       <div className="text-center py-8 text-muted-foreground">
                         <p className="text-sm">No hay productos agregados</p>
