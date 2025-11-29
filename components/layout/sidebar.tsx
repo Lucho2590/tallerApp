@@ -11,6 +11,7 @@ import {
   Wrench,
   Package,
   DollarSign,
+  Building2,
   LogOut,
   X
 } from "lucide-react";
@@ -59,6 +60,11 @@ const menuItems = [
     title: "Caja",
     href: "/caja",
     icon: DollarSign,
+  },
+  {
+    title: "Mi Organización",
+    href: "/organizacion",
+    icon: Building2,
   },
 ];
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,9 +14,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function LoginPage() {
   const router = useRouter();
-  const { signIn, signInWithGoogle } = useAuth();
+  const { signIn, signInWithGoogle, authState, needsOnboarding } = useAuth();
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (authState === "authenticated") {
+      if (needsOnboarding) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
+    }
+  }, [authState, needsOnboarding, router]);
 
   const {
     register,
@@ -31,7 +42,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       await signIn(data.email, data.password);
-      router.push("/dashboard");
+      // El redirect se maneja en el useEffect
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/user-not-found" || err.code === "auth/wrong-password") {
@@ -51,7 +62,7 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       await signInWithGoogle();
-      router.push("/dashboard");
+      // El redirect se maneja en el useEffect
     } catch (err: any) {
       console.error(err);
       if (err.code === "auth/popup-closed-by-user") {
