@@ -22,6 +22,7 @@ import {
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
+import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
 import { vehiculoSchema, type VehiculoFormData } from "@/lib/validations/vehiculo";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Vehiculo, EstadoTrabajo } from "@/types";
@@ -343,6 +344,7 @@ function VehiculoRow({
 }
 
 export default function VehiculosPage() {
+  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const { vehiculos, loading, error, createVehiculo, updateVehiculo, deleteVehiculo } =
     useVehiculos();
   const { clientes, createCliente } = useClientes();
@@ -490,6 +492,11 @@ export default function VehiculosPage() {
   };
 
   const onSubmit = async (data: VehiculoFormData) => {
+    if (!currentTenant) {
+      console.error("No hay tenant seleccionado");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const vehiculoData = {
@@ -504,7 +511,11 @@ export default function VehiculosPage() {
       if (editingVehiculo) {
         await updateVehiculo(editingVehiculo.id, vehiculoData);
       } else {
-        await createVehiculo(vehiculoData);
+        // 🏢 INCLUIR TENANT ID AL CREAR
+        await createVehiculo({
+          ...vehiculoData,
+          tenantId: currentTenant.id,
+        });
       }
 
       setIsDialogOpen(false);
@@ -536,11 +547,15 @@ export default function VehiculosPage() {
   };
 
   const onSubmitCliente = async (data: ClienteFormData) => {
-    if (!vehiculoParaDueno?.id) return;
+    if (!vehiculoParaDueno?.id || !currentTenant) return;
 
     setIsSubmitting(true);
     try {
-      const clienteId = await createCliente(data);
+      // 🏢 INCLUIR TENANT ID AL CREAR CLIENTE
+      const clienteId = await createCliente({
+        ...data,
+        tenantId: currentTenant.id,
+      });
 
       await updateVehiculo(vehiculoParaDueno.id, {
         clienteId: clienteId,
