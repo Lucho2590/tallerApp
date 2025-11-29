@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
+import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Cliente } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -53,6 +54,7 @@ import {
 } from "@/components/ui/form";
 
 export default function ClientesPage() {
+  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const { clientes, loading, error, createCliente, updateCliente, deleteCliente } = useClientes();
   const { vehiculos } = useVehiculos();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
@@ -138,12 +140,21 @@ export default function ClientesPage() {
   };
 
   const onSubmit = async (data: ClienteFormData) => {
+    if (!currentTenant) {
+      console.error("No hay tenant seleccionado");
+      return;
+    }
+
     try {
       setIsSubmitting(true);
       if (editingCliente) {
         await updateCliente(editingCliente.id, data);
       } else {
-        await createCliente(data);
+        // 🏢 INCLUIR TENANT ID AL CREAR
+        await createCliente({
+          ...data,
+          tenantId: currentTenant.id,
+        });
       }
       handleCloseDialog();
     } catch (err) {

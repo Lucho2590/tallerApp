@@ -7,6 +7,7 @@ import {
   updateDoc,
   deleteDoc,
   query,
+  where,
   orderBy,
   Timestamp,
 } from "firebase/firestore";
@@ -16,11 +17,12 @@ import { Cliente } from "@/types";
 const COLLECTION_NAME = "clientes";
 
 export const clientesService = {
-  // Obtener todos los clientes
-  async getAll(): Promise<Cliente[]> {
+  // Obtener todos los clientes (FILTRADO POR TENANT)
+  async getAll(tenantId: string): Promise<Cliente[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         orderBy("fechaCreacion", "desc")
       );
       const querySnapshot = await getDocs(q);
@@ -39,14 +41,21 @@ export const clientesService = {
     }
   },
 
-  // Obtener un cliente por ID
-  async getById(id: string): Promise<Cliente | null> {
+  // Obtener un cliente por ID (VERIFICAR TENANT)
+  async getById(id: string, tenantId: string): Promise<Cliente | null> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // 🏢 VERIFICAR QUE PERTENECE AL TENANT
+        if (data.tenantId !== tenantId) {
+          console.warn(`Cliente ${id} no pertenece al tenant ${tenantId}`);
+          return null;
+        }
+
         return {
           id: docSnap.id,
           ...data,
@@ -61,11 +70,16 @@ export const clientesService = {
     }
   },
 
-  // Crear un nuevo cliente
+  // Crear un nuevo cliente (INCLUIR TENANT ID)
   async create(
     clienteData: Omit<Cliente, "id" | "fechaCreacion" | "fechaActualizacion">
   ): Promise<string> {
     try {
+      // 🏢 Verificar que tenantId está presente
+      if (!clienteData.tenantId) {
+        throw new Error("tenantId es requerido para crear un cliente");
+      }
+
       const now = Timestamp.now();
       const docRef = await addDoc(collection(db, COLLECTION_NAME), {
         ...clienteData,
@@ -79,12 +93,19 @@ export const clientesService = {
     }
   },
 
-  // Actualizar un cliente
+  // Actualizar un cliente (VERIFICAR TENANT)
   async update(
     id: string,
-    clienteData: Partial<Omit<Cliente, "id" | "fechaCreacion" | "fechaActualizacion">>
+    clienteData: Partial<Omit<Cliente, "id" | "fechaCreacion" | "fechaActualizacion">>,
+    tenantId: string
   ): Promise<void> {
     try {
+      // 🏢 Primero verificar que el cliente pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Cliente no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await updateDoc(docRef, {
         ...clienteData,
@@ -96,9 +117,15 @@ export const clientesService = {
     }
   },
 
-  // Eliminar un cliente
-  async delete(id: string): Promise<void> {
+  // Eliminar un cliente (VERIFICAR TENANT)
+  async delete(id: string, tenantId: string): Promise<void> {
     try {
+      // 🏢 Primero verificar que el cliente pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Cliente no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
     } catch (error) {
