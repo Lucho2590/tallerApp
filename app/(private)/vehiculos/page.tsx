@@ -22,6 +22,7 @@ import {
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
+import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
 import { vehiculoSchema, type VehiculoFormData } from "@/lib/validations/vehiculo";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Vehiculo, EstadoTrabajo } from "@/types";
@@ -230,15 +231,15 @@ function VehiculoRow({
             <div className="bg-muted/20 p-4 border-t">
               <div className="space-y-3">
                 {/* Información adicional */}
-                {(vehiculo.datosAdicionales || vehiculo.nChasis) && (
+                {(vehiculo.datosAdicionales || vehiculo.vin) && (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {vehiculo.nChasis && (
+                    {vehiculo.vin && (
                       <div>
                         <h4 className="text-sm font-medium mb-1">
-                          Número de Chasis
+                          VIN
                         </h4>
                         <p className="text-sm text-muted-foreground font-mono">
-                          {vehiculo.nChasis}
+                          {vehiculo.vin}
                         </p>
                       </div>
                     )}
@@ -343,6 +344,7 @@ function VehiculoRow({
 }
 
 export default function VehiculosPage() {
+  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const { vehiculos, loading, error, createVehiculo, updateVehiculo, deleteVehiculo } =
     useVehiculos();
   const { clientes, createCliente } = useClientes();
@@ -361,7 +363,7 @@ export default function VehiculosPage() {
     resolver: zodResolver(vehiculoSchema),
     defaultValues: {
       patente: "",
-      nChasis: "",
+      vin: "",
       modeloMarca: "",
       combustible: "",
       color: "",
@@ -401,7 +403,7 @@ export default function VehiculosPage() {
     return vehiculos.filter((vehiculo) => {
       const textoCompleto = [
         vehiculo.patente,
-        vehiculo.nChasis,
+        vehiculo.vin,
         vehiculo.modeloMarca,
         vehiculo.marca,
         vehiculo.modelo,
@@ -440,7 +442,7 @@ export default function VehiculosPage() {
     setEditingVehiculo(null);
     form.reset({
       patente: "",
-      nChasis: "",
+      vin: "",
       modeloMarca: "",
       combustible: "",
       color: "",
@@ -457,7 +459,7 @@ export default function VehiculosPage() {
     setEditingVehiculo(vehiculo);
     form.reset({
       patente: vehiculo.patente,
-      nChasis: vehiculo.nChasis || "",
+      vin: vehiculo.vin || "",
       modeloMarca: vehiculo.modeloMarca || `${vehiculo.marca || ""} ${vehiculo.modelo || ""}`.trim(),
       combustible: vehiculo.combustible || "",
       color: vehiculo.color || "",
@@ -490,6 +492,11 @@ export default function VehiculosPage() {
   };
 
   const onSubmit = async (data: VehiculoFormData) => {
+    if (!currentTenant) {
+      console.error("No hay tenant seleccionado");
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       const vehiculoData = {
@@ -504,7 +511,11 @@ export default function VehiculosPage() {
       if (editingVehiculo) {
         await updateVehiculo(editingVehiculo.id, vehiculoData);
       } else {
-        await createVehiculo(vehiculoData);
+        // 🏢 INCLUIR TENANT ID AL CREAR
+        await createVehiculo({
+          ...vehiculoData,
+          tenantId: currentTenant.id,
+        });
       }
 
       setIsDialogOpen(false);
@@ -536,11 +547,15 @@ export default function VehiculosPage() {
   };
 
   const onSubmitCliente = async (data: ClienteFormData) => {
-    if (!vehiculoParaDueno?.id) return;
+    if (!vehiculoParaDueno?.id || !currentTenant) return;
 
     setIsSubmitting(true);
     try {
-      const clienteId = await createCliente(data);
+      // 🏢 INCLUIR TENANT ID AL CREAR CLIENTE
+      const clienteId = await createCliente({
+        ...data,
+        tenantId: currentTenant.id,
+      });
 
       await updateVehiculo(vehiculoParaDueno.id, {
         clienteId: clienteId,
@@ -737,7 +752,7 @@ export default function VehiculosPage() {
 
                 <FormField
                   control={form.control}
-                  name="nChasis"
+                  name="vin"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>N° de Chasis</FormLabel>

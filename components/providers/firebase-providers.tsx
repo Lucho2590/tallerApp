@@ -3,6 +3,7 @@
 import { FirebaseAppProvider, AuthProvider as ReactFireAuthProvider, FirestoreProvider } from "reactfire";
 import { app, auth, db } from "@/lib/firebase/config";
 import { AuthProvider } from "@/contexts/AuthContext";
+import { TenantProvider } from "@/contexts/TenantContext";
 
 export function FirebaseProviders({ children }: { children: React.ReactNode }) {
   return (
@@ -10,7 +11,9 @@ export function FirebaseProviders({ children }: { children: React.ReactNode }) {
       <ReactFireAuthProvider sdk={auth}>
         <FirestoreProvider sdk={db}>
           <AuthProvider>
-            {children}
+            <TenantProvider>
+              {children}
+            </TenantProvider>
           </AuthProvider>
         </FirestoreProvider>
       </ReactFireAuthProvider>

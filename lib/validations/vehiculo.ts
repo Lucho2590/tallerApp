@@ -6,9 +6,9 @@ export const vehiculoSchema = z.object({
     .min(1, "La patente es requerida")
     .max(20, "La patente es muy larga")
     .regex(/^[A-Z0-9\s-]+$/i, "Patente inválida"),
-  nChasis: z
+  vin: z
     .string()
-    .max(50, "El número de chasis es muy largo")
+    .max(50, "El VIN es muy largo")
     .optional()
     .or(z.literal("")),
   modeloMarca: z

@@ -1,0 +1,214 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ============================================================================
+    // HELPER FUNCTIONS
+    // ============================================================================
+
+    // Check if user is authenticated
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    // Get user document
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+
+    // Check if user belongs to a tenant
+    function userBelongsToTenant(tenantId) {
+      let userData = getUserData();
+      return userData.tenants != null &&
+             tenantId in userData.tenants.keys();
+    }
+
+    // Check if user has a specific role in tenant
+    function userHasRole(tenantId, role) {
+      let userData = getUserData();
+      return userData.tenants != null &&
+             tenantId in userData.tenants.keys() &&
+             userData.tenants[tenantId].role == role;
+    }
+
+    // Check if user is owner or admin of tenant
+    function isOwnerOrAdmin(tenantId) {
+      let userData = getUserData();
+      return userData.tenants != null &&
+             tenantId in userData.tenants.keys() &&
+             (userData.tenants[tenantId].role == 'owner' ||
+              userData.tenants[tenantId].role == 'admin');
+    }
+
+    // Check if document belongs to user's tenant
+    function belongsToUserTenant(tenantId) {
+      return isAuthenticated() && userBelongsToTenant(tenantId);
+    }
+
+    // ============================================================================
+    // USERS COLLECTION
+    // ============================================================================
+
+    match /users/{userId} {
+      // Users can read their own document
+      allow read: if isAuthenticated() && request.auth.uid == userId;
+
+      // Users can update their own document (except sensitive fields)
+      allow update: if isAuthenticated() &&
+                       request.auth.uid == userId &&
+                       // Cannot modify these fields directly
+                       request.resource.data.email == resource.data.email;
+
+      // User document is created by Firebase extension - no direct writes
+      allow create: if false;
+      allow delete: if false;
+    }
+
+    // ============================================================================
+    // TENANTS COLLECTION
+    // ============================================================================
+
+    match /tenants/{tenantId} {
+      // Users can read tenants they belong to
+      allow read: if isAuthenticated() && userBelongsToTenant(tenantId);
+
+      // Authenticated users can create a tenant (onboarding or new workspace)
+      // No need to check if they belong to it yet - they will be added after creation
+      allow create: if isAuthenticated();
+
+      // Only owner or admin can update tenant
+      allow update: if isAuthenticated() && isOwnerOrAdmin(tenantId);
+
+      // Only owner can delete tenant
+      allow delete: if isAuthenticated() && userHasRole(tenantId, 'owner');
+    }
+
+    // ============================================================================
+    // TENANT DATA COLLECTIONS
+    // ============================================================================
+
+    // Generic rule for all tenant-scoped collections
+    function canAccessTenantData(tenantId) {
+      return isAuthenticated() &&
+             belongsToUserTenant(tenantId) &&
+             request.resource.data.tenantId == tenantId;
+    }
+
+    function canModifyTenantData(tenantId) {
+      return isAuthenticated() &&
+             belongsToUserTenant(tenantId) &&
+             resource.data.tenantId == tenantId;
+    }
+
+    // Clientes
+    match /clientes/{clienteId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Vehiculos
+    match /vehiculos/{vehiculoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Trabajos
+    match /trabajos/{trabajoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Turnos
+    match /turnos/{turnoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Productos (cuando lo implementes)
+    match /productos/{productoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Presupuestos (cuando lo implementes)
+    match /presupuestos/{presupuestoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Productos
+    match /productos/{productoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Movimientos de Caja (cuando lo implementes)
+    match /movimientos_caja/{movimientoId} {
+      allow read: if isAuthenticated() &&
+                     belongsToUserTenant(resource.data.tenantId);
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+    }
+
+    // ============================================================================
+    // INVITATIONS
+    // ============================================================================
+
+    match /invitations/{invitationId} {
+      // Users can read invitations sent to their email
+      allow read: if isAuthenticated() &&
+                     request.auth.token.email == resource.data.email;
+
+      // Only owner or admin can create invitations
+      allow create: if isAuthenticated() &&
+                       isOwnerOrAdmin(request.resource.data.tenantId);
+
+      // Users can update invitations sent to them (accept/reject)
+      allow update: if isAuthenticated() &&
+                       request.auth.token.email == resource.data.email;
+
+      // Only creator can delete invitation
+      allow delete: if isAuthenticated() &&
+                       isOwnerOrAdmin(resource.data.tenantId);
+    }
+
+    // ============================================================================
+    // DEFAULT DENY ALL
+    // ============================================================================
+
+    // Deny all other access
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

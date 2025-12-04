@@ -10,62 +10,86 @@ import {
   GoogleAuthProvider,
   signInWithPopup,
 } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
-import { auth, db } from "@/lib/firebase/config";
-import { User, UserRole } from "@/types";
+import { auth } from "@/lib/firebase/config";
+import { TenantUser } from "@/types/tenant";
+import { usersService } from "@/services/users/usersService";
 
 type AuthState = "loading" | "authenticated" | "unauthenticated";
 
 interface AuthContextType {
-  user: User | null;
+  user: TenantUser | null;
   firebaseUser: FirebaseUser | null;
   authState: AuthState;
+  needsOnboarding: boolean;
   signIn: (email: string, password: string) => Promise<void>;
   signInWithGoogle: () => Promise<void>;
   signUp: (email: string, password: string, nombre: string, apellido: string) => Promise<void>;
   signOut: () => Promise<void>;
+  refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<TenantUser | null>(null);
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authState, setAuthState] = useState<AuthState>("loading");
+  const [needsOnboarding, setNeedsOnboarding] = useState(false);
+
+  // Reload user data (without waiting for Rowy - user already exists)
+  const reloadUserData = async (firebaseUser: FirebaseUser) => {
+    try {
+      // Get user data (this call already returns the user with tenants info)
+      const userData = await usersService.getById(firebaseUser.uid);
+
+      if (userData) {
+        setUser(userData);
+
+        // Check if user needs onboarding directly from userData (avoid extra call)
+        const tenants = userData.tenants || {};
+        const needsOb = Object.keys(tenants).length === 0;
+        setNeedsOnboarding(needsOb);
+
+        setAuthState("authenticated");
+      } else {
+        throw new Error("No se pudo cargar el usuario");
+      }
+    } catch (error) {
+      console.error("Error reloading user data:", error);
+      throw error;
+    }
+  };
+
+  // Load user data (initial login - wait for Rowy extension)
+  const loadUserData = async (firebaseUser: FirebaseUser) => {
+    try {
+      // Wait a bit for Rowy extension to create the user document
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Initialize user with tenant fields if needed
+      await usersService.initializeUser(
+        firebaseUser.uid,
+        firebaseUser.email || "",
+        firebaseUser.displayName || undefined
+      );
+
+      // Reload user data
+      await reloadUserData(firebaseUser);
+    } catch (error) {
+      console.error("Error loading user data:", error);
+      setAuthState("unauthenticated");
+    }
+  };
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       if (firebaseUser) {
         setFirebaseUser(firebaseUser);
-        // Obtener datos del usuario desde Firestore
-        const userDoc = await getDoc(doc(db, "users", firebaseUser.uid));
-        if (userDoc.exists()) {
-          const userData = userDoc.data() as Omit<User, "id">;
-          setUser({
-            id: firebaseUser.uid,
-            ...userData,
-          });
-          setAuthState("authenticated");
-        } else {
-          // Si no existe el documento, crear uno con rol por defecto
-          const newUser: Omit<User, "id"> = {
-            email: firebaseUser.email || "",
-            nombre: "",
-            apellido: "",
-            rol: UserRole.USER,
-            fechaCreacion: new Date(),
-            fechaActualizacion: new Date(),
-          };
-          await setDoc(doc(db, "users", firebaseUser.uid), newUser);
-          setUser({
-            id: firebaseUser.uid,
-            ...newUser,
-          });
-          setAuthState("authenticated");
-        }
+        await loadUserData(firebaseUser);
       } else {
         setFirebaseUser(null);
         setUser(null);
+        setNeedsOnboarding(false);
         setAuthState("unauthenticated");
       }
     });
@@ -84,16 +108,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signUp = async (email: string, password: string, nombre: string, apellido: string) => {
     try {
-      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
-      const newUser: Omit<User, "id"> = {
-        email,
-        nombre,
-        apellido,
-        rol: UserRole.USER,
-        fechaCreacion: new Date(),
-        fechaActualizacion: new Date(),
-      };
-      await setDoc(doc(db, "users", userCredential.user.uid), newUser);
+      // Rowy extension will create the user document automatically
+      await createUserWithEmailAndPassword(auth, email, password);
+      // loadUserData will be called by onAuthStateChanged
     } catch (error) {
       console.error("Error al registrarse:", error);
       throw error;
@@ -103,30 +120,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signInWithGoogle = async () => {
     try {
       const provider = new GoogleAuthProvider();
-      const result = await signInWithPopup(auth, provider);
-
-      // Verificar si el usuario ya existe en Firestore
-      const userDoc = await getDoc(doc(db, "users", result.user.uid));
-
-      if (!userDoc.exists()) {
-        // Si es la primera vez que inicia sesión, crear el documento del usuario
-        const displayNameParts = result.user.displayName?.split(" ") || ["", ""];
-        const nombre = displayNameParts[0] || "";
-        const apellido = displayNameParts.slice(1).join(" ") || "";
-
-        const newUser: Omit<User, "id"> = {
-          email: result.user.email || "",
-          nombre,
-          apellido,
-          rol: UserRole.USER,
-          fechaCreacion: new Date(),
-          fechaActualizacion: new Date(),
-        };
-        await setDoc(doc(db, "users", result.user.uid), newUser);
-      }
+      // Rowy extension will create the user document automatically
+      await signInWithPopup(auth, provider);
+      // loadUserData will be called by onAuthStateChanged
     } catch (error) {
       console.error("Error al iniciar sesión con Google:", error);
       throw error;
+    }
+  };
+
+  const refreshUser = async () => {
+    if (firebaseUser) {
+      await reloadUserData(firebaseUser);
     }
   };
 
@@ -143,10 +148,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     user,
     firebaseUser,
     authState,
+    needsOnboarding,
     signIn,
     signInWithGoogle,
     signUp,
     signOut,
+    refreshUser,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

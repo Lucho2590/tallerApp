@@ -1,27 +1,29 @@
-"use client";
+import { Navbar } from "@/components/landing/Navbar"
+import { HeroSection } from "@/components/landing/HeroSection"
+import { DemoSection } from "@/components/landing/DemoSection"
+import { FeaturesGrid } from "@/components/landing/FeaturesGrid"
+import { PricingSection } from "@/components/landing/PricingSection"
+import { CTASection } from "@/components/landing/CTASection"
+import { Footer } from "@/components/landing/Footer"
 
-import { useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
-
-export default function Home() {
-  const router = useRouter();
-  const { authState } = useAuth();
-
-  useEffect(() => {
-    if (authState === "authenticated") {
-      router.push("/dashboard");
-    } else if (authState === "unauthenticated") {
-      router.push("/login");
-    }
-  }, [authState, router]);
-
+export default function LandingPage() {
   return (
-    <div className="flex min-h-screen items-center justify-center">
-      <div className="text-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
-        <p className="text-muted-foreground">Cargando...</p>
+    <main className="min-h-screen bg-slate-950">
+      <Navbar />
+      <HeroSection />
+      <div id="demo">
+        <DemoSection />
       </div>
-    </div>
-  );
+      <div id="features">
+        <FeaturesGrid />
+      </div>
+      <div id="pricing">
+        <PricingSection />
+      </div>
+      <div id="contact">
+        <CTASection />
+      </div>
+      <Footer />
+    </main>
+  )
 }

@@ -28,11 +28,12 @@ const cleanUndefined = <T extends Record<string, any>>(obj: T): T => {
 };
 
 export const vehiculosService = {
-  // Obtener todos los vehículos
-  async getAll(): Promise<Vehiculo[]> {
+  // Obtener todos los vehículos (FILTRADO POR TENANT)
+  async getAll(tenantId: string): Promise<Vehiculo[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         orderBy("fechaCreacion", "desc")
       );
       const querySnapshot = await getDocs(q);
@@ -51,11 +52,12 @@ export const vehiculosService = {
     }
   },
 
-  // Obtener vehículos por cliente
-  async getByClienteId(clienteId: string): Promise<Vehiculo[]> {
+  // Obtener vehículos por cliente (FILTRADO POR TENANT)
+  async getByClienteId(clienteId: string, tenantId: string): Promise<Vehiculo[]> {
     try {
       const q = query(
         collection(db, COLLECTION_NAME),
+        where("tenantId", "==", tenantId), // 🏢 FILTRO MULTITENANT
         where("clienteId", "==", clienteId),
         orderBy("fechaCreacion", "desc")
       );
@@ -75,14 +77,21 @@ export const vehiculosService = {
     }
   },
 
-  // Obtener un vehículo por ID
-  async getById(id: string): Promise<Vehiculo | null> {
+  // Obtener un vehículo por ID (VERIFICAR TENANT)
+  async getById(id: string, tenantId: string): Promise<Vehiculo | null> {
     try {
       const docRef = doc(db, COLLECTION_NAME, id);
       const docSnap = await getDoc(docRef);
 
       if (docSnap.exists()) {
         const data = docSnap.data();
+
+        // 🏢 VERIFICAR QUE PERTENECE AL TENANT
+        if (data.tenantId !== tenantId) {
+          console.warn(`Vehículo ${id} no pertenece al tenant ${tenantId}`);
+          return null;
+        }
+
         return {
           id: docSnap.id,
           ...data,
@@ -97,11 +106,16 @@ export const vehiculosService = {
     }
   },
 
-  // Crear un nuevo vehículo
+  // Crear un nuevo vehículo (INCLUIR TENANT ID)
   async create(
     vehiculoData: Omit<Vehiculo, "id" | "fechaCreacion" | "fechaActualizacion">
   ): Promise<string> {
     try {
+      // 🏢 Verificar que tenantId está presente
+      if (!vehiculoData.tenantId) {
+        throw new Error("tenantId es requerido para crear un vehículo");
+      }
+
       const now = Timestamp.now();
       const cleanedData = cleanUndefined({
         ...vehiculoData,
@@ -116,12 +130,19 @@ export const vehiculosService = {
     }
   },
 
-  // Actualizar un vehículo
+  // Actualizar un vehículo (VERIFICAR TENANT)
   async update(
     id: string,
-    vehiculoData: Partial<Omit<Vehiculo, "id" | "fechaCreacion" | "fechaActualizacion">>
+    vehiculoData: Partial<Omit<Vehiculo, "id" | "fechaCreacion" | "fechaActualizacion">>,
+    tenantId: string
   ): Promise<void> {
     try {
+      // 🏢 Primero verificar que el vehículo pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Vehículo no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       const cleanedData = cleanUndefined({
         ...vehiculoData,
@@ -134,9 +155,15 @@ export const vehiculosService = {
     }
   },
 
-  // Eliminar un vehículo
-  async delete(id: string): Promise<void> {
+  // Eliminar un vehículo (VERIFICAR TENANT)
+  async delete(id: string, tenantId: string): Promise<void> {
     try {
+      // 🏢 Primero verificar que el vehículo pertenece al tenant
+      const existing = await this.getById(id, tenantId);
+      if (!existing) {
+        throw new Error("Vehículo no encontrado o no pertenece a este tenant");
+      }
+
       const docRef = doc(db, COLLECTION_NAME, id);
       await deleteDoc(docRef);
     } catch (error) {

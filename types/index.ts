@@ -57,6 +57,7 @@ export interface User extends BaseEntity {
 
 // Cliente
 export interface Cliente extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   nombre: string;
   apellido: string;
   email?: string;
@@ -71,8 +72,9 @@ export interface Cliente extends BaseEntity {
 
 // Vehículo
 export interface Vehiculo extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   patente: string;
-  nChasis?: string;
+  vin?: string; // vehicle identification number
   modeloMarca: string; // Campo unificado "Toyota Corolla", "Ford Focus", etc.
   combustible: string; // "Nafta", "Diesel", "GNC", etc.
   color?: string;
@@ -88,6 +90,7 @@ export interface Vehiculo extends BaseEntity {
 
 // Turno
 export interface Turno extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   clienteId: string;
   vehiculoId: string;
   fecha: Date;
@@ -100,15 +103,25 @@ export interface Turno extends BaseEntity {
 
 // Producto
 export interface Producto extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
+  codigo?: string; // Código de producto/SKU
   nombre: string;
   descripcion?: string;
-  precio: number;
-  stock: number;
   categoria?: string;
+  precio: number;
+  precioCompra?: number; // Costo de compra
+  stock: number;
+  stockMinimo?: number; // Alerta de stock bajo
+  unidad?: string; // "unidad", "litro", "metro", etc.
+  marca?: string;
+  proveedor?: string;
+  ubicacion?: string; // Ubicación en depósito
+  activo: boolean; // Si está disponible para venta
 }
 
 // Presupuesto
 export interface Presupuesto extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   numero: string;
   clienteId: string;
   vehiculoId: string;
@@ -131,6 +144,7 @@ export interface PresupuestoItem {
 
 // Trabajo/Orden de Trabajo
 export interface Trabajo extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   numero: string; // Número de orden autogenerado
   clienteId: string;
   vehiculoId: string;
@@ -160,6 +174,7 @@ export interface TrabajoItem {
 
 // Movimiento de Caja
 export interface MovimientoCaja extends BaseEntity {
+  tenantId: string; // 🏢 MULTITENANT
   tipo: "ingreso" | "egreso";
   monto: number;
   concepto: string;
