@@ -36,7 +36,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [authState, setAuthState] = useState<AuthState>("loading");
   const [needsOnboarding, setNeedsOnboarding] = useState(false);
 
-  // Load user data
+  // Reload user data (without waiting for Rowy - user already exists)
+  const reloadUserData = async (firebaseUser: FirebaseUser) => {
+    try {
+      // Get user data (this call already returns the user with tenants info)
+      const userData = await usersService.getById(firebaseUser.uid);
+
+      if (userData) {
+        setUser(userData);
+
+        // Check if user needs onboarding directly from userData (avoid extra call)
+        const tenants = userData.tenants || {};
+        const needsOb = Object.keys(tenants).length === 0;
+        setNeedsOnboarding(needsOb);
+
+        setAuthState("authenticated");
+      } else {
+        throw new Error("No se pudo cargar el usuario");
+      }
+    } catch (error) {
+      console.error("Error reloading user data:", error);
+      throw error;
+    }
+  };
+
+  // Load user data (initial login - wait for Rowy extension)
   const loadUserData = async (firebaseUser: FirebaseUser) => {
     try {
       // Wait a bit for Rowy extension to create the user document
@@ -49,20 +73,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         firebaseUser.displayName || undefined
       );
 
-      // Get user data
-      const userData = await usersService.getById(firebaseUser.uid);
-
-      if (userData) {
-        setUser(userData);
-
-        // Check if user needs onboarding (no tenants)
-        const needsOb = await usersService.needsOnboarding(firebaseUser.uid);
-        setNeedsOnboarding(needsOb);
-
-        setAuthState("authenticated");
-      } else {
-        throw new Error("No se pudo cargar el usuario");
-      }
+      // Reload user data
+      await reloadUserData(firebaseUser);
     } catch (error) {
       console.error("Error loading user data:", error);
       setAuthState("unauthenticated");
@@ -119,7 +131,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = async () => {
     if (firebaseUser) {
-      await loadUserData(firebaseUser);
+      await reloadUserData(firebaseUser);
     }
   };
 

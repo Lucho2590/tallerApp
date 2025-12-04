@@ -54,14 +54,23 @@ export const usersService = {
       const apellido = nameParts.slice(1).join(" ") || "";
 
       if (docSnap.exists()) {
-        // User exists (created by Rowy extension), update with tenant fields
-        await updateDoc(docRef, {
-          tenants: {}, // Empty object, will be populated when user creates/joins tenant
-          currentTenantId: "", // Will be set when user creates/joins first tenant
+        // User exists (created by Rowy extension), update with tenant fields if they don't exist
+        const data = docSnap.data();
+        const updateData: any = {
           nombre,
           apellido,
           updatedAt: Timestamp.now(),
-        });
+        };
+
+        // Only initialize tenant fields if they don't exist (don't overwrite)
+        if (!data.tenants) {
+          updateData.tenants = {};
+        }
+        if (!data.currentTenantId) {
+          updateData.currentTenantId = "";
+        }
+
+        await updateDoc(docRef, updateData);
       } else {
         // User doesn't exist, create it
         await setDoc(docRef, {
@@ -100,12 +109,12 @@ export const usersService = {
       const userData = docSnap.data();
       const tenants = userData.tenants || {};
 
-      // Add tenant relation
+      // Add tenant relation (only include invitedBy if it has a value)
       const relation: UserTenantRelation = {
         tenantId,
         role,
         joinedAt: Timestamp.now(),
-        invitedBy,
+        ...(invitedBy && { invitedBy }),
       };
 
       tenants[tenantId] = relation;

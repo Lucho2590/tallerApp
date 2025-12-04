@@ -92,32 +92,48 @@ export default function OnboardingPage() {
     try {
       setIsSubmitting(true);
 
-      // Create tenant
-      const tenantId = await tenantsService.createTenant({
+      // Helper para limpiar valores vacíos
+      const cleanValue = (value: string | undefined) => {
+        return value && value.trim() !== "" ? value : undefined;
+      };
+
+      // Create tenant - filtrar undefined
+      const tenantData: any = {
         name: data.name,
-        legalName: data.legalName,
-        taxId: data.taxId,
         email: user.email,
-        phone: data.phone,
-        address: data.address?.street ? {
-          street: data.address.street,
-          city: data.address.city || "",
-          state: data.address.state || "",
-          zipCode: data.address.zipCode || "",
-          country: data.address.country || "Argentina",
-        } : undefined,
         plan: SubscriptionPlan.TRIAL,
         active: true,
         timezone: "America/Argentina/Buenos_Aires",
         locale: "es-AR",
         currency: "ARS",
-      });
+      };
+
+      // Solo agregar campos opcionales si tienen valor
+      if (cleanValue(data.legalName)) tenantData.legalName = data.legalName;
+      if (cleanValue(data.taxId)) tenantData.taxId = data.taxId;
+      if (cleanValue(data.phone)) tenantData.phone = data.phone;
+
+      // Address solo si tiene al menos street
+      if (data.address?.street && cleanValue(data.address.street)) {
+        tenantData.address = {
+          street: data.address.street,
+          city: data.address.city || "",
+          state: data.address.state || "",
+          zipCode: data.address.zipCode || "",
+          country: data.address.country || "Argentina",
+        };
+      }
+
+      const tenantId = await tenantsService.createTenant(tenantData);
 
       // Add tenant to user as OWNER
       await usersService.addTenantToUser(user.id, tenantId, TenantRole.OWNER);
 
-      // Refresh user data
+      // Refresh user data and wait for React state to update
       await refreshUser();
+
+      // Small delay to ensure state updates propagate
+      await new Promise(resolve => setTimeout(resolve, 100));
 
       // Redirect to dashboard
       router.push("/dashboard");

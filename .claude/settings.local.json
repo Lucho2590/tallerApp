@@ -12,7 +12,8 @@
       "Bash(npm run build:*)",
       "Bash(git merge:*)",
       "Bash(cat:*)",
-      "Bash(firebase:*)"
+      "Bash(firebase:*)",
+      "Bash(mkdir:*)"
     ],
     "deny": [],
     "ask": []

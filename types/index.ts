@@ -104,11 +104,19 @@ export interface Turno extends BaseEntity {
 // Producto
 export interface Producto extends BaseEntity {
   tenantId: string; // 🏢 MULTITENANT
+  codigo?: string; // Código de producto/SKU
   nombre: string;
   descripcion?: string;
-  precio: number;
-  stock: number;
   categoria?: string;
+  precio: number;
+  precioCompra?: number; // Costo de compra
+  stock: number;
+  stockMinimo?: number; // Alerta de stock bajo
+  unidad?: string; // "unidad", "litro", "metro", etc.
+  marca?: string;
+  proveedor?: string;
+  ubicacion?: string; // Ubicación en depósito
+  activo: boolean; // Si está disponible para venta
 }
 
 // Presupuesto
