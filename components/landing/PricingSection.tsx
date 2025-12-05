@@ -1,9 +1,10 @@
 "use client"
 
 import { motion } from "framer-motion"
-import { Check, X, Zap } from "lucide-react"
+import { Check, X } from "lucide-react"
 import Link from "next/link"
 import { Button } from "@/components/ui/button"
+import { useState } from "react"
 
 const plans = [
   {
@@ -14,17 +15,11 @@ const plans = [
     features: [
       { text: "Hasta 2 usuarios", included: true },
       { text: "Hasta 50 clientes", included: true },
-      { text: "Módulos básicos", included: true },
       { text: "Clientes y Vehículos", included: true },
       { text: "Trabajos y Órdenes", included: true },
       { text: "Soporte por email", included: true },
-      { text: "Agenda y Turnos", included: false },
-      { text: "Productos e Inventario", included: false },
-      { text: "Caja e Ingresos", included: false },
-      { text: "Reportes avanzados", included: false },
     ],
     cta: "Comenzar gratis",
-    highlighted: false,
   },
   {
     name: "Basic",
@@ -34,17 +29,12 @@ const plans = [
     features: [
       { text: "Hasta 5 usuarios", included: true },
       { text: "Hasta 500 clientes", included: true },
-      { text: "Todos los módulos básicos", included: true },
       { text: "Clientes, Vehículos, Trabajos", included: true },
       { text: "Agenda y Turnos", included: true },
       { text: "Presupuestos", included: true },
-      { text: "Notificaciones por email", included: true },
       { text: "Soporte prioritario", included: true },
-      { text: "Productos e Inventario", included: false },
-      { text: "Reportes avanzados", included: false },
     ],
     cta: "Comenzar ahora",
-    highlighted: false,
   },
   {
     name: "Premium",
@@ -57,14 +47,10 @@ const plans = [
       { text: "Todos los módulos", included: true },
       { text: "Inventario completo", included: true },
       { text: "Caja e ingresos/egresos", included: true },
-      { text: "Notificaciones email + SMS", included: true },
       { text: "Reportes avanzados", included: true },
-      { text: "Branding personalizado", included: true },
-      { text: "Soporte prioritario 24/7", included: true },
-      { text: "Capacitación incluida", included: true },
+      { text: "Soporte 24/7", included: true },
     ],
     cta: "Comenzar ahora",
-    highlighted: true,
   },
   {
     name: "Enterprise",
@@ -76,21 +62,18 @@ const plans = [
       { text: "Clientes ilimitados", included: true },
       { text: "Todos los módulos", included: true },
       { text: "Multi-taller", included: true },
-      { text: "API dedicada", included: true },
-      { text: "Integraciones custom", included: true },
       { text: "Soporte dedicado", included: true },
-      { text: "SLA garantizado", included: true },
       { text: "Capacitación personalizada", included: true },
-      { text: "Onboarding asistido", included: true },
     ],
     cta: "Contactar ventas",
-    highlighted: false,
   },
 ]
 
 export function PricingSection() {
+  const [activePlan, setActivePlan] = useState(0)
+
   return (
-    <section className="py-32 bg-slate-950 relative overflow-hidden">
+    <section className="py-20 md:py-32 bg-slate-950 relative overflow-hidden">
       {/* Background decoration */}
       <div className="absolute inset-0 bg-[url('/grid.svg')] bg-center opacity-10" />
       <motion.div
@@ -113,21 +96,90 @@ export function PricingSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5 }}
-          className="text-center max-w-3xl mx-auto mb-20"
+          className="text-center max-w-3xl mx-auto mb-12 md:mb-20"
         >
-          <h2 className="text-4xl sm:text-5xl font-bold text-white mb-6">
+          <h2 className="text-3xl sm:text-4xl md:text-5xl font-bold text-white mb-4 md:mb-6">
             Planes que se adaptan a{" "}
             <span className="bg-gradient-to-r from-orange-400 to-amber-400 bg-clip-text text-transparent">
               tu taller
             </span>
           </h2>
-          <p className="text-xl text-slate-400">
-            Comienza gratis y escala cuando lo necesites. Sin contratos largos, cancela cuando quieras.
+          <p className="text-lg md:text-xl text-slate-400">
+            Comienza gratis y escala cuando lo necesites
           </p>
         </motion.div>
 
-        {/* Pricing cards */}
-        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-8">
+        {/* MOBILE VERSION - Tabs */}
+        <div className="md:hidden">
+          {/* Tabs horizontales */}
+          <div className="flex gap-2 overflow-x-auto mb-8 pb-2 scrollbar-hide">
+            {plans.map((plan, index) => (
+              <button
+                key={plan.name}
+                onClick={() => setActivePlan(index)}
+                className={`flex-shrink-0 px-4 py-2 rounded-lg text-sm font-semibold transition-all ${
+                  activePlan === index
+                    ? "bg-orange-600 text-white"
+                    : "bg-slate-800 text-slate-400 hover:bg-slate-700"
+                }`}
+              >
+                {plan.name}
+              </button>
+            ))}
+          </div>
+
+          {/* Plan card */}
+          <motion.div
+            key={activePlan}
+            initial={{ opacity: 0, x: 20 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ duration: 0.3 }}
+          >
+            <div className="bg-slate-900/50 backdrop-blur-xl rounded-xl border border-slate-800 p-6">
+              {/* Plan header */}
+              <div className="mb-6">
+                <h3 className="text-2xl font-bold text-white mb-1">{plans[activePlan].name}</h3>
+                <p className="text-slate-400 text-sm mb-4">{plans[activePlan].description}</p>
+
+                <div className="flex items-baseline gap-2">
+                  <span className="text-5xl font-bold text-white">{plans[activePlan].price}</span>
+                  {plans[activePlan].period !== "contactar" && (
+                    <span className="text-slate-400 text-sm">/{plans[activePlan].period}</span>
+                  )}
+                </div>
+              </div>
+
+              {/* Features list */}
+              <ul className="space-y-3 mb-6">
+                {plans[activePlan].features.map((feature, featureIndex) => (
+                  <li key={featureIndex} className="flex items-start gap-2">
+                    {feature.included ? (
+                      <Check className="h-5 w-5 text-green-400 flex-shrink-0 mt-0.5" />
+                    ) : (
+                      <X className="h-5 w-5 text-slate-600 flex-shrink-0 mt-0.5" />
+                    )}
+                    <span className={`${feature.included ? "text-slate-300" : "text-slate-600"}`}>
+                      {feature.text}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+
+              {/* CTA button */}
+              <Link href="/onboarding">
+                <Button
+                  className="w-full bg-orange-600 hover:bg-orange-700 text-white shadow-lg shadow-orange-500/50"
+                  size="lg"
+                >
+                  {plans[activePlan].cta}
+                </Button>
+              </Link>
+            </div>
+          </motion.div>
+        </div>
+
+        {/* DESKTOP VERSION - Grid normal sin destacado */}
+        <div className="hidden md:grid md:grid-cols-2 lg:grid-cols-4 gap-8">
           {plans.map((plan, index) => (
             <motion.div
               key={plan.name}
@@ -137,23 +189,7 @@ export function PricingSection() {
               transition={{ duration: 0.5, delay: index * 0.1 }}
               className="relative"
             >
-              {/* Most popular badge */}
-              {plan.highlighted && (
-                <div className="absolute -top-4 left-0 right-0 flex justify-center z-20">
-                  <div className="bg-gradient-to-r from-orange-500 to-amber-500 text-white px-4 py-1 rounded-full text-sm font-semibold flex items-center gap-1">
-                    <Zap className="h-4 w-4" />
-                    Más popular
-                  </div>
-                </div>
-              )}
-
-              <div
-                className={`h-full bg-slate-900/50 backdrop-blur-xl rounded-2xl border ${
-                  plan.highlighted
-                    ? "border-orange-500 shadow-lg shadow-orange-500/20"
-                    : "border-slate-800"
-                } p-8 flex flex-col ${plan.highlighted ? "scale-105" : ""}`}
-              >
+              <div className="h-full bg-slate-900/50 backdrop-blur-xl rounded-2xl border border-slate-800 hover:border-slate-700 p-8 flex flex-col transition-all">
                 {/* Plan header */}
                 <div className="mb-8">
                   <h3 className="text-2xl font-bold text-white mb-2">{plan.name}</h3>
@@ -186,11 +222,7 @@ export function PricingSection() {
                 {/* CTA button */}
                 <Link href="/onboarding">
                   <Button
-                    className={`w-full ${
-                      plan.highlighted
-                        ? "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700 text-white shadow-lg shadow-orange-500/50"
-                        : "bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
-                    }`}
+                    className="w-full bg-slate-800 hover:bg-slate-700 text-white border border-slate-700"
                     size="lg"
                   >
                     {plan.cta}
@@ -207,9 +239,9 @@ export function PricingSection() {
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
           transition={{ duration: 0.5, delay: 0.4 }}
-          className="mt-20 text-center"
+          className="mt-12 md:mt-20 text-center"
         >
-          <p className="text-slate-400 text-lg">
+          <p className="text-slate-400 text-base md:text-lg">
             ¿Necesitas un plan personalizado?{" "}
             <a href="mailto:contacto@tallerapp.com" className="text-orange-400 hover:text-orange-300 underline">
               Contáctanos
@@ -217,6 +249,16 @@ export function PricingSection() {
           </p>
         </motion.div>
       </div>
+
+      <style jsx>{`
+        .scrollbar-hide::-webkit-scrollbar {
+          display: none;
+        }
+        .scrollbar-hide {
+          -ms-overflow-style: none;
+          scrollbar-width: none;
+        }
+      `}</style>
     </section>
   )
 }
