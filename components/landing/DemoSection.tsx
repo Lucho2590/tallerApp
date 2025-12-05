@@ -1,8 +1,8 @@
 "use client"
 
-import { motion } from "framer-motion"
+import { motion, AnimatePresence } from "framer-motion"
 import { useState } from "react"
-import { Calendar, Car, ClipboardList, DollarSign, Package, Users } from "lucide-react"
+import { Calendar, Car, ClipboardList, DollarSign, Package, Users, ChevronDown } from "lucide-react"
 
 const features = [
   {
@@ -132,6 +132,7 @@ const colorClasses = {
 
 export function DemoSection() {
   const [activeFeature, setActiveFeature] = useState(features[0])
+  const [expandedMobile, setExpandedMobile] = useState<string | null>(null)
 
   return (
     <section className="py-32 bg-slate-950 relative overflow-hidden">
@@ -158,7 +159,8 @@ export function DemoSection() {
           </p>
         </motion.div>
 
-        <div className="grid lg:grid-cols-2 gap-12 items-start">
+        {/* DESKTOP VERSION - Tabs laterales */}
+        <div className="hidden lg:grid lg:grid-cols-2 gap-12 items-start">
           {/* Feature tabs */}
           <motion.div
             initial={{ opacity: 0, x: -20 }}
@@ -212,7 +214,7 @@ export function DemoSection() {
             initial={{ opacity: 0, x: 20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ duration: 0.3 }}
-            className="lg:sticky lg:top-24"
+            className="sticky top-24"
           >
             <div className="bg-slate-900/50 backdrop-blur-xl border border-slate-800 rounded-2xl p-8 space-y-6">
               <div className="flex items-center gap-4">
@@ -258,6 +260,77 @@ export function DemoSection() {
               </div>
             </div>
           </motion.div>
+        </div>
+
+        {/* MOBILE VERSION - Acordeón colapsable */}
+        <div className="lg:hidden space-y-4">
+          {features.map((feature, index) => {
+            const Icon = feature.icon
+            const colors = colorClasses[feature.color as keyof typeof colorClasses]
+            const isExpanded = expandedMobile === feature.id
+
+            return (
+              <motion.div
+                key={feature.id}
+                initial={{ opacity: 0, y: 20 }}
+                whileInView={{ opacity: 1, y: 0 }}
+                viewport={{ once: true }}
+                transition={{ duration: 0.3, delay: index * 0.05 }}
+                className={`bg-slate-900/50 backdrop-blur-xl border rounded-xl overflow-hidden transition-all ${
+                  isExpanded ? `${colors.border} shadow-lg` : "border-slate-800"
+                }`}
+              >
+                {/* Header - siempre visible */}
+                <button
+                  onClick={() => setExpandedMobile(isExpanded ? null : feature.id)}
+                  className="w-full p-4 flex items-center gap-4 text-left"
+                >
+                  <div className={`p-3 rounded-lg ${colors.iconBg}`}>
+                    <Icon className={`h-5 w-5 ${colors.text}`} />
+                  </div>
+                  <div className="flex-1">
+                    <h3 className="text-lg font-semibold text-white">{feature.title}</h3>
+                    <p className="text-sm text-slate-400">{feature.description}</p>
+                  </div>
+                  <motion.div
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                    transition={{ duration: 0.3 }}
+                  >
+                    <ChevronDown className="h-5 w-5 text-slate-400" />
+                  </motion.div>
+                </button>
+
+                {/* Content expandible */}
+                <AnimatePresence>
+                  {isExpanded && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: "auto", opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      transition={{ duration: 0.3 }}
+                      className="border-t border-slate-800"
+                    >
+                      <div className="p-4 space-y-4">
+                        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+                          Funcionalidades principales
+                        </h4>
+                        {feature.details.map((detail, idx) => (
+                          <div key={idx} className="flex items-start gap-2">
+                            <div className={`mt-1 p-1 rounded-full ${colors.bg}`}>
+                              <svg className={`h-3 w-3 ${colors.text}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                              </svg>
+                            </div>
+                            <p className="text-sm text-slate-300">{detail}</p>
+                          </div>
+                        ))}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+            )
+          })}
         </div>
       </div>
     </section>
