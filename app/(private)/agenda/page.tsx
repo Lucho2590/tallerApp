@@ -1,19 +1,19 @@
 "use client";
 
 import { useState, useMemo, useCallback } from "react";
-import { useForm, Controller } from "react-hook-form";
+import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Clock, User, Car as CarIcon } from "lucide-react";
+import { Plus, Pencil, Trash2, Calendar as CalendarIcon, Clock, User, Car as CarIcon, X } from "lucide-react";
 import { useTurnos } from "@/hooks/agenda/useTurnos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
-import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
+import { useTenant } from "@/contexts/TenantContext";
 import { turnoSchema, type TurnoFormData } from "@/lib/validations/turno";
 import { Turno, EstadoTurno } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -46,7 +46,7 @@ const estadoLabels = {
 };
 
 export default function AgendaPage() {
-  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
+  const { currentTenant } = useTenant();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { turnos, loading, error, createTurno, updateTurno, deleteTurno } = useTurnos(selectedDate);
   const { clientes } = useClientes();
@@ -54,15 +54,27 @@ export default function AgendaPage() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTurno, setEditingTurno] = useState<Turno | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [selectedClienteId, setSelectedClienteId] = useState<string>("");
+
+  // Estados para autocomplete de cliente
+  const [clienteSearchText, setClienteSearchText] = useState("");
+  const [showClienteSuggestions, setShowClienteSuggestions] = useState(false);
+  const [selectedCliente, setSelectedCliente] = useState<{ id: string; nombre: string; apellido: string } | null>(null);
+
+  // Estados para autocomplete de vehículo
+  const [vehiculoSearchText, setVehiculoSearchText] = useState("");
+  const [showVehiculoSuggestions, setShowVehiculoSuggestions] = useState(false);
+  const [selectedVehiculo, setSelectedVehiculo] = useState<{ id: string; patente: string; modeloMarca: string } | null>(null);
+
+  // Modal de confirmación para guardar datos temporales
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [pendingData, setPendingData] = useState<TurnoFormData | null>(null);
 
   const {
     register,
     handleSubmit,
     reset,
-    control,
-    watch,
     setValue,
+    watch,
     formState: { errors },
   } = useForm<TurnoFormData>({
     resolver: zodResolver(turnoSchema),
@@ -71,15 +83,53 @@ export default function AgendaPage() {
     },
   });
 
-  const clienteIdValue = watch("clienteId");
+  // Filtrar clientes según búsqueda
+  const clientesFiltrados = useMemo(() => {
+    if (!clienteSearchText) return [];
+    return clientes
+      .filter((c) =>
+        `${c.nombre} ${c.apellido}`.toLowerCase().includes(clienteSearchText.toLowerCase())
+      )
+      .slice(0, 5);
+  }, [clientes, clienteSearchText]);
+
+  // Filtrar vehículos según búsqueda
+  const vehiculosFiltrados = useMemo(() => {
+    if (!vehiculoSearchText) return [];
+    return vehiculos
+      .filter((v) =>
+        v.patente.toLowerCase().includes(vehiculoSearchText.toLowerCase()) ||
+        v.modeloMarca.toLowerCase().includes(vehiculoSearchText.toLowerCase())
+      )
+      .slice(0, 5);
+  }, [vehiculos, vehiculoSearchText]);
 
   const handleOpenDialog = (turno?: Turno) => {
     if (turno) {
       setEditingTurno(turno);
-      setSelectedClienteId(turno.clienteId);
+      // Configurar cliente
+      if (turno.clienteId) {
+        const cliente = clientes.find((c) => c.id === turno.clienteId);
+        if (cliente) {
+          setSelectedCliente({ id: cliente.id, nombre: cliente.nombre, apellido: cliente.apellido });
+          setClienteSearchText(`${cliente.nombre} ${cliente.apellido}`);
+        }
+      } else if (turno.clienteTemp) {
+        setClienteSearchText(`${turno.clienteTemp.nombre} ${turno.clienteTemp.apellido}`);
+      }
+
+      // Configurar vehículo
+      if (turno.vehiculoId) {
+        const vehiculo = vehiculos.find((v) => v.id === turno.vehiculoId);
+        if (vehiculo) {
+          setSelectedVehiculo({ id: vehiculo.id, patente: vehiculo.patente, modeloMarca: vehiculo.modeloMarca });
+          setVehiculoSearchText(vehiculo.patente);
+        }
+      } else if (turno.vehiculoTemp) {
+        setVehiculoSearchText(turno.vehiculoTemp.patente);
+      }
+
       reset({
-        clienteId: turno.clienteId,
-        vehiculoId: turno.vehiculoId,
         fecha: turno.fecha,
         horaInicio: turno.horaInicio,
         horaFin: turno.horaFin,
@@ -89,10 +139,11 @@ export default function AgendaPage() {
       });
     } else {
       setEditingTurno(null);
-      setSelectedClienteId("");
+      setSelectedCliente(null);
+      setSelectedVehiculo(null);
+      setClienteSearchText("");
+      setVehiculoSearchText("");
       reset({
-        clienteId: "",
-        vehiculoId: "",
         fecha: selectedDate,
         horaInicio: "09:00",
         horaFin: "10:00",
@@ -107,25 +158,136 @@ export default function AgendaPage() {
   const handleCloseDialog = () => {
     setIsDialogOpen(false);
     setEditingTurno(null);
-    setSelectedClienteId("");
+    setSelectedCliente(null);
+    setSelectedVehiculo(null);
+    setClienteSearchText("");
+    setVehiculoSearchText("");
     reset();
   };
 
-  const onSubmit = async (data: TurnoFormData) => {
-    // 🏢 VALIDAR QUE HAYA TENANT
+  const handleSelectCliente = (cliente: { id: string; nombre: string; apellido: string }) => {
+    setSelectedCliente(cliente);
+    setClienteSearchText(`${cliente.nombre} ${cliente.apellido}`);
+    setShowClienteSuggestions(false);
+    setValue("clienteId", cliente.id);
+    setValue("clienteTemp", undefined);
+  };
+
+  const handleSelectVehiculo = (vehiculo: { id: string; patente: string; modeloMarca: string }) => {
+    setSelectedVehiculo(vehiculo);
+    setVehiculoSearchText(vehiculo.patente);
+    setShowVehiculoSuggestions(false);
+    setValue("vehiculoId", vehiculo.id);
+    setValue("vehiculoTemp", undefined);
+  };
+
+  const handleSubmitClick = async (data: TurnoFormData) => {
     if (!currentTenant) {
       alert("Error: No hay un taller seleccionado");
       return;
     }
+
+    // Determinar si hay datos temporales
+    const isClienteTemp = !selectedCliente && clienteSearchText.trim();
+    const isVehiculoTemp = !selectedVehiculo && vehiculoSearchText.trim();
+
+    if (isClienteTemp || isVehiculoTemp) {
+      // Preparar datos temporales
+      const turnoData: TurnoFormData = { ...data };
+
+      if (isClienteTemp) {
+        const [nombre, ...apellidoParts] = clienteSearchText.trim().split(" ");
+        turnoData.clienteTemp = {
+          nombre: nombre || "",
+          apellido: apellidoParts.join(" ") || nombre,
+        };
+        turnoData.clienteId = undefined;
+      } else {
+        turnoData.clienteId = selectedCliente?.id;
+        turnoData.clienteTemp = undefined;
+      }
+
+      if (isVehiculoTemp) {
+        turnoData.vehiculoTemp = {
+          patente: vehiculoSearchText.trim(),
+          modeloMarca: "Sin especificar",
+        };
+        turnoData.vehiculoId = undefined;
+      } else {
+        turnoData.vehiculoId = selectedVehiculo?.id;
+        turnoData.vehiculoTemp = undefined;
+      }
+
+      setPendingData(turnoData);
+      setShowSaveModal(true);
+    } else {
+      // Todo es existente, crear directamente
+      await createTurnoDirectly({
+        ...data,
+        clienteId: selectedCliente?.id,
+        vehiculoId: selectedVehiculo?.id,
+      });
+    }
+  };
+
+  const createTurnoDirectly = async (data: TurnoFormData) => {
+    if (!currentTenant) return;
 
     try {
       setIsSubmitting(true);
       if (editingTurno) {
         await updateTurno(editingTurno.id, data);
       } else {
-        // 🏢 AGREGAR TENANT ID AL CREAR TURNO
         await createTurno({ ...data, tenantId: currentTenant.id });
       }
+      handleCloseDialog();
+    } catch (err) {
+      console.error("Error al guardar turno:", err);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const createTurnoAndSave = async (saveCliente: boolean, saveVehiculo: boolean) => {
+    if (!currentTenant || !pendingData) return;
+
+    try {
+      setIsSubmitting(true);
+      let finalClienteId = pendingData.clienteId;
+      let finalVehiculoId = pendingData.vehiculoId;
+
+      // Guardar cliente si se solicitó
+      if (saveCliente && pendingData.clienteTemp) {
+        const { clientesService } = await import("@/services/clientes/clientesService");
+        finalClienteId = await clientesService.create({
+          tenantId: currentTenant.id,
+          ...pendingData.clienteTemp,
+          telefono: pendingData.clienteTemp.telefono || "",
+          email: "",
+        });
+      }
+
+      // Guardar vehículo si se solicitó
+      if (saveVehiculo && pendingData.vehiculoTemp) {
+        const { vehiculosService } = await import("@/services/vehiculos/vehiculosService");
+        finalVehiculoId = await vehiculosService.create({
+          tenantId: currentTenant.id,
+          clienteId: finalClienteId || "",
+          ...pendingData.vehiculoTemp,
+          combustible: "Sin especificar",
+        });
+      }
+
+      const turnoData: TurnoFormData = {
+        ...pendingData,
+        clienteId: finalClienteId,
+        vehiculoId: finalVehiculoId,
+        clienteTemp: saveCliente ? undefined : pendingData.clienteTemp,
+        vehiculoTemp: saveVehiculo ? undefined : pendingData.vehiculoTemp,
+      };
+
+      await createTurno({ ...turnoData, tenantId: currentTenant.id });
+      setShowSaveModal(false);
       handleCloseDialog();
     } catch (err) {
       console.error("Error al guardar turno:", err);
@@ -144,20 +306,25 @@ export default function AgendaPage() {
     }
   };
 
-  const getClienteNombre = (clienteId: string) => {
-    const cliente = clientes.find((c) => c.id === clienteId);
-    return cliente ? `${cliente.nombre} ${cliente.apellido}` : "Cliente no encontrado";
+  const getClienteNombre = (turno: Turno) => {
+    if (turno.clienteId) {
+      const cliente = clientes.find((c) => c.id === turno.clienteId);
+      return cliente ? `${cliente.nombre} ${cliente.apellido}` : "Cliente no encontrado";
+    } else if (turno.clienteTemp) {
+      return `${turno.clienteTemp.nombre} ${turno.clienteTemp.apellido}`;
+    }
+    return "Sin cliente";
   };
 
-  const getVehiculoInfo = (vehiculoId: string) => {
-    const vehiculo = vehiculos.find((v) => v.id === vehiculoId);
-    return vehiculo ? `${vehiculo.marca} ${vehiculo.modelo} - ${vehiculo.patente}` : "Vehículo no encontrado";
+  const getVehiculoInfo = (turno: Turno) => {
+    if (turno.vehiculoId) {
+      const vehiculo = vehiculos.find((v) => v.id === turno.vehiculoId);
+      return vehiculo ? `${vehiculo.patente} - ${vehiculo.modeloMarca}` : "Vehículo no encontrado";
+    } else if (turno.vehiculoTemp) {
+      return `${turno.vehiculoTemp.patente} - ${turno.vehiculoTemp.modeloMarca}`;
+    }
+    return "Sin vehículo";
   };
-
-  const vehiculosDelCliente = useMemo(
-    () => vehiculos.filter((v) => v.clienteId === (clienteIdValue || selectedClienteId)),
-    [vehiculos, clienteIdValue, selectedClienteId]
-  );
 
   const changeDate = useCallback((days: number) => {
     setSelectedDate(prevDate => {
@@ -223,88 +390,146 @@ export default function AgendaPage() {
                   : "Completa el formulario para crear un nuevo turno"}
               </DialogDescription>
             </DialogHeader>
-            <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
+            <form onSubmit={handleSubmit(handleSubmitClick)} className="space-y-4">
+              {/* Cliente Autocomplete */}
               <div className="space-y-2">
-                <Label htmlFor="clienteId">Cliente *</Label>
-                <Controller
-                  name="clienteId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={(value) => {
-                        field.onChange(value);
-                        setSelectedClienteId(value);
-                        setValue("vehiculoId", "");
+                <Label htmlFor="cliente">Cliente *</Label>
+                <div className="relative">
+                  <Input
+                    id="cliente"
+                    value={clienteSearchText}
+                    onChange={(e) => {
+                      setClienteSearchText(e.target.value);
+                      setShowClienteSuggestions(true);
+                      setSelectedCliente(null);
+                    }}
+                    onFocus={() => setShowClienteSuggestions(true)}
+                    placeholder="Buscar cliente por nombre..."
+                  />
+                  {selectedCliente && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => {
+                        setSelectedCliente(null);
+                        setClienteSearchText("");
                       }}
-                      value={field.value}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clientes.map((cliente) => (
-                          <SelectItem key={cliente.id} value={cliente.id}>
-                            {cliente.nombre} {cliente.apellido}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <X className="h-4 w-4" />
+                    </Button>
                   )}
-                />
+                  {showClienteSuggestions && clientesFiltrados.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {clientesFiltrados.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-muted transition-colors"
+                          onClick={() => handleSelectCliente({
+                            id: cliente.id,
+                            nombre: cliente.nombre,
+                            apellido: cliente.apellido
+                          })}
+                        >
+                          <div className="font-medium">{cliente.nombre} {cliente.apellido}</div>
+                          {cliente.telefono && (
+                            <div className="text-sm text-muted-foreground">{cliente.telefono}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {!selectedCliente && clienteSearchText && (
+                  <p className="text-xs text-muted-foreground">
+                    Cliente temporal: se creará como "{clienteSearchText}"
+                  </p>
+                )}
                 {errors.clienteId && (
                   <p className="text-sm text-destructive">{errors.clienteId.message}</p>
                 )}
               </div>
+
+              {/* Vehículo Autocomplete */}
               <div className="space-y-2">
-                <Label htmlFor="vehiculoId">Vehículo *</Label>
-                <Controller
-                  name="vehiculoId"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                      disabled={!clienteIdValue && !selectedClienteId}
+                <Label htmlFor="vehiculo">Vehículo *</Label>
+                <div className="relative">
+                  <Input
+                    id="vehiculo"
+                    value={vehiculoSearchText}
+                    onChange={(e) => {
+                      setVehiculoSearchText(e.target.value);
+                      setShowVehiculoSuggestions(true);
+                      setSelectedVehiculo(null);
+                    }}
+                    onFocus={() => setShowVehiculoSuggestions(true)}
+                    placeholder="Buscar vehículo por patente..."
+                  />
+                  {selectedVehiculo && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
+                      onClick={() => {
+                        setSelectedVehiculo(null);
+                        setVehiculoSearchText("");
+                      }}
                     >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecciona un vehículo" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {vehiculosDelCliente.map((vehiculo) => (
-                          <SelectItem key={vehiculo.id} value={vehiculo.id}>
-                            {vehiculo.marca} {vehiculo.modelo} - {vehiculo.patente}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                      <X className="h-4 w-4" />
+                    </Button>
                   )}
-                />
+                  {showVehiculoSuggestions && vehiculosFiltrados.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-background border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {vehiculosFiltrados.map((vehiculo) => (
+                        <button
+                          key={vehiculo.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-muted transition-colors"
+                          onClick={() => handleSelectVehiculo({
+                            id: vehiculo.id,
+                            patente: vehiculo.patente,
+                            modeloMarca: vehiculo.modeloMarca
+                          })}
+                        >
+                          <div className="font-medium">{vehiculo.patente}</div>
+                          <div className="text-sm text-muted-foreground">{vehiculo.modeloMarca}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                {!selectedVehiculo && vehiculoSearchText && (
+                  <p className="text-xs text-muted-foreground">
+                    Vehículo temporal: se creará con patente "{vehiculoSearchText}"
+                  </p>
+                )}
                 {errors.vehiculoId && (
                   <p className="text-sm text-destructive">{errors.vehiculoId.message}</p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="fecha">Fecha *</Label>
-                <Controller
-                  name="fecha"
-                  control={control}
-                  render={({ field }) => (
-                    <Input
-                      type="date"
-                      value={field.value?.toISOString().split("T")[0] || ""}
-                      onChange={(e) => {
-                        // Crear fecha en zona horaria local para evitar problemas con UTC
-                        const [year, month, day] = e.target.value.split("-").map(Number);
-                        const localDate = new Date(year, month - 1, day);
-                        field.onChange(localDate);
-                      }}
-                    />
-                  )}
+                <Input
+                  type="date"
+                  {...register("fecha", {
+                    valueAsDate: false,
+                    setValueAs: (value) => {
+                      if (!value) return undefined;
+                      const [year, month, day] = value.split("-").map(Number);
+                      return new Date(year, month - 1, day);
+                    }
+                  })}
+                  defaultValue={selectedDate.toISOString().split("T")[0]}
                 />
                 {errors.fecha && (
                   <p className="text-sm text-destructive">{errors.fecha.message}</p>
                 )}
               </div>
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="horaInicio">Hora Inicio *</Label>
@@ -329,6 +554,7 @@ export default function AgendaPage() {
                   )}
                 </div>
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="descripcion">Descripción *</Label>
                 <Input
@@ -340,33 +566,29 @@ export default function AgendaPage() {
                   <p className="text-sm text-destructive">{errors.descripcion.message}</p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="estado">Estado *</Label>
-                <Controller
-                  name="estado"
-                  control={control}
-                  render={({ field }) => (
-                    <Select
-                      onValueChange={field.onChange}
-                      value={field.value}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {Object.values(EstadoTurno).map((estado) => (
-                          <SelectItem key={estado} value={estado}>
-                            {estadoLabels[estado]}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
-                />
+                <Select
+                  onValueChange={(value) => setValue("estado", value as EstadoTurno)}
+                  defaultValue={EstadoTurno.PENDIENTE}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(EstadoTurno).map((estado) => (
+                      <SelectItem key={estado} value={estado}>
+                        {estadoLabels[estado]}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 {errors.estado && (
                   <p className="text-sm text-destructive">{errors.estado.message}</p>
                 )}
               </div>
+
               <div className="space-y-2">
                 <Label htmlFor="notas">Notas</Label>
                 <Input
@@ -378,6 +600,7 @@ export default function AgendaPage() {
                   <p className="text-sm text-destructive">{errors.notas.message}</p>
                 )}
               </div>
+
               <DialogFooter>
                 <Button type="button" variant="outline" onClick={handleCloseDialog}>
                   Cancelar
@@ -390,6 +613,53 @@ export default function AgendaPage() {
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* Modal de confirmación para guardar datos temporales */}
+      <Dialog open={showSaveModal} onOpenChange={setShowSaveModal}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Guardar Información</DialogTitle>
+            <DialogDescription>
+              Has ingresado datos temporales. ¿Deseas guardarlos en la base de datos?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {pendingData?.clienteTemp && (
+              <div className="p-3 border rounded-md">
+                <p className="font-medium mb-1">Cliente temporal:</p>
+                <p className="text-sm text-muted-foreground">
+                  {pendingData.clienteTemp.nombre} {pendingData.clienteTemp.apellido}
+                </p>
+              </div>
+            )}
+            {pendingData?.vehiculoTemp && (
+              <div className="p-3 border rounded-md">
+                <p className="font-medium mb-1">Vehículo temporal:</p>
+                <p className="text-sm text-muted-foreground">
+                  {pendingData.vehiculoTemp.patente}
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => createTurnoAndSave(false, false)}
+              disabled={isSubmitting}
+            >
+              Usar solo esta vez
+            </Button>
+            <Button
+              type="button"
+              onClick={() => createTurnoAndSave(true, true)}
+              disabled={isSubmitting}
+            >
+              Guardar en la base de datos
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Selector de fecha */}
       <Card>
@@ -483,11 +753,11 @@ export default function AgendaPage() {
                     <div className="space-y-1 text-sm">
                       <div className="flex items-center gap-2">
                         <User className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{getClienteNombre(turno.clienteId)}</span>
+                        <span className="truncate">{getClienteNombre(turno)}</span>
                       </div>
                       <div className="flex items-center gap-2">
                         <CarIcon className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                        <span className="truncate">{getVehiculoInfo(turno.vehiculoId)}</span>
+                        <span className="truncate">{getVehiculoInfo(turno)}</span>
                       </div>
                     </div>
                     {turno.notas && (

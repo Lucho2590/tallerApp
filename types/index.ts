@@ -94,8 +94,22 @@ export interface Vehiculo extends BaseEntity {
 // Turno
 export interface Turno extends BaseEntity {
   tenantId: string; // 🏢 MULTITENANT
-  clienteId: string;
-  vehiculoId: string;
+  clienteId?: string; // Opcional si se usa clienteTemp
+  vehiculoId?: string; // Opcional si se usa vehiculoTemp
+
+  // Datos temporales de cliente (cuando no se guarda en la BD)
+  clienteTemp?: {
+    nombre: string;
+    apellido: string;
+    telefono?: string;
+  };
+
+  // Datos temporales de vehículo (cuando no se guarda en la BD)
+  vehiculoTemp?: {
+    patente: string;
+    modeloMarca: string;
+  };
+
   fecha: Date;
   horaInicio: string;
   horaFin: string;
