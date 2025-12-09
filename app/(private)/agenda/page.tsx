@@ -227,8 +227,8 @@ export default function AgendaPage() {
 
     if (!validation.success) {
       // Mostrar errores de validación
-      if (validation.error?.errors) {
-        validation.error.errors.forEach((err) => {
+      if (validation.error?.issues) {
+        validation.error.issues.forEach((err) => {
           const field = err.path[0] as keyof TurnoFormData;
           setError(field, { message: err.message });
         });
