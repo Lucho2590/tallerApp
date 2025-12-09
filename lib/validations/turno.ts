@@ -2,12 +2,21 @@ import { z } from "zod";
 import { EstadoTurno } from "@/types";
 
 export const turnoSchema = z.object({
-  clienteId: z
-    .string()
-    .min(1, "El cliente es requerido"),
-  vehiculoId: z
-    .string()
-    .min(1, "El vehículo es requerido"),
+  // Cliente: puede ser existente (ID) o nuevo (datos temporales)
+  clienteId: z.string().optional(),
+  clienteTemp: z.object({
+    nombre: z.string().min(1, "Nombre es requerido"),
+    apellido: z.string().min(1, "Apellido es requerido"),
+    telefono: z.string().optional(),
+  }).optional(),
+
+  // Vehículo: puede ser existente (ID) o nuevo (datos temporales)
+  vehiculoId: z.string().optional(),
+  vehiculoTemp: z.object({
+    patente: z.string().min(1, "Patente es requerida"),
+    modeloMarca: z.string().min(1, "Modelo/Marca es requerido"),
+  }).optional(),
+
   fecha: z
     .date({ message: "La fecha es requerida" }),
   horaInicio: z
@@ -28,6 +37,18 @@ export const turnoSchema = z.object({
     .max(500, "Las notas son muy largas")
     .optional()
     .or(z.literal("")),
-});
+}).refine(
+  (data) => data.clienteId || data.clienteTemp,
+  {
+    message: "Debe seleccionar un cliente existente o ingresar datos de un cliente nuevo",
+    path: ["clienteId"],
+  }
+).refine(
+  (data) => data.vehiculoId || data.vehiculoTemp,
+  {
+    message: "Debe seleccionar un vehículo existente o ingresar datos de un vehículo nuevo",
+    path: ["vehiculoId"],
+  }
+);
 
 export type TurnoFormData = z.infer<typeof turnoSchema>;
