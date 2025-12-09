@@ -23,9 +23,6 @@ import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
-import { useResourceLimits } from "@/hooks/useResourceLimits";
-import { ResourceLimitBanner } from "@/components/ResourceLimitBanner";
-import { ResourceLimitModal } from "@/components/ResourceLimitModal";
 import { vehiculoSchema, type VehiculoFormData } from "@/lib/validations/vehiculo";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Vehiculo, EstadoTrabajo } from "@/types";

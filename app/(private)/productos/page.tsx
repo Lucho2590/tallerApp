@@ -16,8 +16,7 @@ import {
 import { useProductos } from "@/hooks/productos/useProductos";
 import { useTenant } from "@/contexts/TenantContext";
 import { productoSchema, type ProductoFormData } from "@/lib/validations/producto";
-import { Producto, TenantModule } from "@/types";
-import { ModuleGuard } from "@/components/guards/ModuleGuard";
+import { Producto } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -241,9 +240,7 @@ export default function ProductosPage() {
   }
 
   return (
-    // MVP: ModuleGuard deshabilitado - Todos los módulos disponibles
-    // <ModuleGuard module={TenantModule.INVENTORY}>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -710,6 +707,6 @@ export default function ProductosPage() {
         </div>
       )}
       </div>
-    // </ModuleGuard>
+
   );
 }
