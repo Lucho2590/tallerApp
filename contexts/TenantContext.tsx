@@ -2,15 +2,13 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 import { useAuth } from "./AuthContext";
-import { Tenant, TenantRole } from "@/types/tenant";
+import { Tenant } from "@/types/tenant";
 
 interface TenantContextType {
   currentTenant: Tenant | null;
-  tenants: Tenant[];
-  currentRole: TenantRole | null;
-  switchTenant: (tenantId: string) => Promise<void>;
   loading: boolean;
   error: string | null;
+  refreshTenant: () => Promise<void>;
 }
 
 const TenantContext = createContext<TenantContextType | undefined>(undefined);
@@ -18,25 +16,21 @@ const TenantContext = createContext<TenantContextType | undefined>(undefined);
 export function TenantProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const [currentTenant, setCurrentTenant] = useState<Tenant | null>(null);
-  const [tenants, setTenants] = useState<Tenant[]>([]);
-  const [currentRole, setCurrentRole] = useState<TenantRole | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Load user's tenants when user changes
+  // Load user's tenant when user changes
   useEffect(() => {
     if (!user) {
       setCurrentTenant(null);
-      setTenants([]);
-      setCurrentRole(null);
       setLoading(false);
       return;
     }
 
-    loadUserTenants();
+    loadUserTenant();
   }, [user]);
 
-  const loadUserTenants = async () => {
+  const loadUserTenant = async () => {
     try {
       setLoading(true);
       setError(null);
@@ -46,91 +40,46 @@ export function TenantProvider({ children }: { children: React.ReactNode }) {
         return;
       }
 
-      // Get user's tenant IDs from their document
-      const userTenants = user.tenants || {};
-      const tenantIds = Object.keys(userTenants);
+      console.log("🔍 [TenantContext] Loading tenant for user:", user.id);
+      console.log("🔍 [TenantContext] User tenantId:", user.tenantId);
 
-      if (tenantIds.length === 0) {
-        // User has no tenants - will need onboarding
-        setTenants([]);
+      // If user doesn't have a tenant, they need onboarding (unless super admin)
+      if (!user.tenantId) {
+        console.log("⚠️ [TenantContext] User has no tenant, needs onboarding");
         setCurrentTenant(null);
-        setCurrentRole(null);
         setLoading(false);
         return;
       }
 
-      // Load full tenant documents
+      // Load the tenant
       const { tenantsService } = await import("@/services/tenants/tenantsService");
-      const loadedTenants: Tenant[] = [];
+      const tenant = await tenantsService.getTenantById(user.tenantId);
 
-      for (const tenantId of tenantIds) {
-        const tenant = await tenantsService.getTenantById(tenantId);
-        if (tenant) {
-          loadedTenants.push(tenant);
-        }
-      }
-
-      setTenants(loadedTenants);
-
-      // Set current tenant from user's currentTenantId or first tenant
-      let currentTenant = loadedTenants.find(t => t.id === user.currentTenantId);
-      if (!currentTenant && loadedTenants.length > 0) {
-        currentTenant = loadedTenants[0];
-      }
-
-      if (currentTenant) {
-        setCurrentTenant(currentTenant);
-
-        // Get user's role in current tenant
-        const relation = (userTenants as Record<string, any>)[currentTenant.id];
-        setCurrentRole(relation?.role || null);
+      if (tenant) {
+        console.log("✅ [TenantContext] Tenant loaded:", tenant.name);
+        setCurrentTenant(tenant);
+      } else {
+        console.log("❌ [TenantContext] Tenant not found:", user.tenantId);
+        setError("No se pudo cargar el taller");
       }
 
       setLoading(false);
     } catch (err) {
-      console.error("Error loading tenants:", err);
-      setError("Error al cargar los talleres");
+      console.error("Error loading tenant:", err);
+      setError("Error al cargar el taller");
       setLoading(false);
     }
   };
 
-  const switchTenant = async (tenantId: string) => {
-    try {
-      setError(null);
-
-      if (!user) {
-        throw new Error("Usuario no autenticado");
-      }
-
-      const tenant = tenants.find((t) => t.id === tenantId);
-      if (!tenant) {
-        throw new Error("Taller no encontrado");
-      }
-
-      setCurrentTenant(tenant);
-
-      // Update current role
-      const userTenants = user.tenants || {};
-      const relation = (userTenants as Record<string, any>)[tenantId];
-      setCurrentRole(relation?.role || null);
-
-      // Update in Firebase
-      const { usersService } = await import("@/services/users/usersService");
-      await usersService.switchTenant(user.id, tenantId);
-    } catch (err) {
-      console.error("Error switching tenant:", err);
-      setError("Error al cambiar de taller");
-      throw err;
-    }
+  const refreshTenant = async () => {
+    await loadUserTenant();
   };
 
   const value: TenantContextType = {
     currentTenant,
-    tenants,
-    currentRole,
-    switchTenant,
     loading,
     error,
+    refreshTenant,
   };
 
   return (

@@ -1,12 +1,14 @@
 import {
   doc,
   getDoc,
+  getDocs,
+  collection,
   updateDoc,
   setDoc,
   Timestamp,
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-import { TenantUser, UserTenantRelation, TenantRole } from "@/types/tenant";
+import { TenantUser } from "@/types/tenant";
 
 const COLLECTION_NAME = "users";
 
@@ -36,7 +38,24 @@ export const usersService = {
   },
 
   /**
-   * Initialize user document with tenant structure
+   * Get all users (for admin panel)
+   */
+  async getAllUsers(): Promise<TenantUser[]> {
+    try {
+      const snapshot = await getDocs(collection(db, COLLECTION_NAME));
+
+      return snapshot.docs.map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as TenantUser[];
+    } catch (error) {
+      console.error("Error al obtener usuarios:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Initialize user document
    * Called after Rowy extension creates the basic user document
    */
   async initializeUser(
@@ -54,7 +73,7 @@ export const usersService = {
       const apellido = nameParts.slice(1).join(" ") || "";
 
       if (docSnap.exists()) {
-        // User exists (created by Rowy extension), update with tenant fields if they don't exist
+        // User exists (created by Rowy extension), update with basic fields
         const data = docSnap.data();
         const updateData: any = {
           nombre,
@@ -62,12 +81,9 @@ export const usersService = {
           updatedAt: Timestamp.now(),
         };
 
-        // Only initialize tenant fields if they don't exist (don't overwrite)
-        if (!data.tenants) {
-          updateData.tenants = {};
-        }
-        if (!data.currentTenantId) {
-          updateData.currentTenantId = "";
+        // Only initialize tenantId if it doesn't exist
+        if (!data.tenantId) {
+          updateData.tenantId = null;
         }
 
         await updateDoc(docRef, updateData);
@@ -77,8 +93,7 @@ export const usersService = {
           email,
           nombre,
           apellido,
-          tenants: {},
-          currentTenantId: "",
+          tenantId: null,
           createdAt: Timestamp.now(),
           updatedAt: Timestamp.now(),
         });
@@ -90,128 +105,49 @@ export const usersService = {
   },
 
   /**
-   * Add tenant to user
+   * Set user's tenant ID (their workshop)
    */
-  async addTenantToUser(
-    userId: string,
-    tenantId: string,
-    role: TenantRole = TenantRole.OWNER,
-    invitedBy?: string
-  ): Promise<void> {
+  async setUserTenant(userId: string, tenantId: string): Promise<void> {
     try {
       const docRef = doc(db, COLLECTION_NAME, userId);
-      const docSnap = await getDoc(docRef);
 
-      if (!docSnap.exists()) {
-        throw new Error("Usuario no encontrado");
-      }
-
-      const userData = docSnap.data();
-      const tenants = userData.tenants || {};
-
-      // Add tenant relation (only include invitedBy if it has a value)
-      const relation: UserTenantRelation = {
+      await updateDoc(docRef, {
         tenantId,
-        role,
-        joinedAt: Timestamp.now(),
-        ...(invitedBy && { invitedBy }),
-      };
-
-      tenants[tenantId] = relation;
-
-      // If this is the first tenant, set it as current
-      const currentTenantId = userData.currentTenantId || tenantId;
-
-      await updateDoc(docRef, {
-        tenants,
-        currentTenantId,
         updatedAt: Timestamp.now(),
       });
     } catch (error) {
-      console.error("Error al agregar tenant al usuario:", error);
+      console.error("Error al asignar tenant al usuario:", error);
       throw error;
     }
   },
 
   /**
-   * Switch current tenant
+   * Update user data
    */
-  async switchTenant(userId: string, tenantId: string): Promise<void> {
+  async updateUser(userId: string, userData: Partial<TenantUser>): Promise<void> {
     try {
       const docRef = doc(db, COLLECTION_NAME, userId);
-      const docSnap = await getDoc(docRef);
-
-      if (!docSnap.exists()) {
-        throw new Error("Usuario no encontrado");
-      }
-
-      const userData = docSnap.data();
-      const tenants = userData.tenants || {};
-
-      // Verify user belongs to this tenant
-      if (!tenants[tenantId]) {
-        throw new Error("Usuario no pertenece a este tenant");
-      }
 
       await updateDoc(docRef, {
-        currentTenantId: tenantId,
+        ...userData,
         updatedAt: Timestamp.now(),
       });
     } catch (error) {
-      console.error("Error al cambiar tenant:", error);
+      console.error("Error al actualizar usuario:", error);
       throw error;
     }
   },
 
   /**
-   * Remove tenant from user
-   */
-  async removeTenantFromUser(
-    userId: string,
-    tenantId: string
-  ): Promise<void> {
-    try {
-      const docRef = doc(db, COLLECTION_NAME, userId);
-      const docSnap = await getDoc(docRef);
-
-      if (!docSnap.exists()) {
-        throw new Error("Usuario no encontrado");
-      }
-
-      const userData = docSnap.data();
-      const tenants = userData.tenants || {};
-
-      // Remove tenant
-      delete tenants[tenantId];
-
-      // If current tenant was removed, switch to another one or empty
-      let currentTenantId = userData.currentTenantId;
-      if (currentTenantId === tenantId) {
-        const remainingTenants = Object.keys(tenants);
-        currentTenantId = remainingTenants.length > 0 ? remainingTenants[0] : "";
-      }
-
-      await updateDoc(docRef, {
-        tenants,
-        currentTenantId,
-        updatedAt: Timestamp.now(),
-      });
-    } catch (error) {
-      console.error("Error al remover tenant del usuario:", error);
-      throw error;
-    }
-  },
-
-  /**
-   * Check if user needs onboarding (has no tenants)
+   * Check if user needs onboarding (has no tenant)
    */
   async needsOnboarding(userId: string): Promise<boolean> {
     try {
       const user = await this.getById(userId);
       if (!user) return true;
 
-      const tenants = user.tenants || {};
-      return Object.keys(tenants).length === 0;
+      // User needs onboarding if they don't have a tenant (unless they're a superadmin)
+      return !user.tenantId && !user.isSuperAdmin;
     } catch (error) {
       console.error("Error al verificar onboarding:", error);
       return true;

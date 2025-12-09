@@ -13,6 +13,7 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 import { Trabajo } from "@/types";
+import { productosService } from "@/services/productos/productosService";
 
 const COLLECTION_NAME = "trabajos";
 
@@ -248,9 +249,51 @@ export const trabajosService = {
         fechaActualizacion: Timestamp.now(),
       };
 
-      // Si se completa el trabajo, marcar fecha de finalización
+      // Si se completa el trabajo, marcar fecha de finalización y descontar stock
       if (nuevoEstado === "completado") {
         updates.fechaFinalizacion = Timestamp.now();
+
+        // Descontar stock de productos del inventario
+        if (existing.items && existing.items.length > 0) {
+          for (const item of existing.items) {
+            // Solo procesar items que tengan referencia a un producto del inventario
+            if (item.productoId) {
+              try {
+                // Obtener el producto actual
+                const producto = await productosService.getById(
+                  item.productoId,
+                  tenantId
+                );
+
+                if (producto) {
+                  // Calcular nuevo stock
+                  const nuevoStock = producto.stock - item.cantidad;
+
+                  // Actualizar stock del producto
+                  await productosService.update(
+                    item.productoId,
+                    { stock: nuevoStock },
+                    tenantId
+                  );
+
+                  console.log(
+                    `Stock actualizado para producto ${producto.nombre}: ${producto.stock} -> ${nuevoStock}`
+                  );
+                } else {
+                  console.warn(
+                    `Producto ${item.productoId} no encontrado para descontar stock`
+                  );
+                }
+              } catch (error) {
+                console.error(
+                  `Error al descontar stock del producto ${item.productoId}:`,
+                  error
+                );
+                // Continuar con los demás productos aunque uno falle
+              }
+            }
+          }
+        }
       }
 
       await updateDoc(docRef, updates);

@@ -16,7 +16,8 @@ import {
 import { useCaja } from "@/hooks/caja/useCaja";
 import { useTenant } from "@/contexts/TenantContext";
 import { movimientoCajaSchema, type MovimientoCajaFormData } from "@/lib/validations/movimientoCaja";
-import { MovimientoCaja, TipoPago } from "@/types";
+import { MovimientoCaja, TipoPago, TenantModule } from "@/types";
+import { ModuleGuard } from "@/components/guards/ModuleGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -206,16 +207,18 @@ export default function CajaPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <DollarSign className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Caja</h1>
-            <p className="text-muted-foreground">
-              Gestiona ingresos y egresos del taller
-            </p>
+    // MVP: ModuleGuard deshabilitado - Todos los módulos disponibles
+    // <ModuleGuard module={TenantModule.INVOICING}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <DollarSign className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Caja</h1>
+              <p className="text-muted-foreground">
+                Gestiona ingresos y egresos del taller
+              </p>
           </div>
         </div>
 
@@ -630,6 +633,7 @@ export default function CajaPage() {
           </Table>
         </div>
       )}
-    </div>
+      </div>
+    // </ModuleGuard>
   );
 }

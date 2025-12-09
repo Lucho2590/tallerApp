@@ -25,7 +25,6 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
 
 // Schema de validación
 const organizacionSchema = z.object({
@@ -154,52 +153,6 @@ export default function OrganizacionPage() {
           </div>
         </div>
       </div>
-
-      {/* Plan Badge */}
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle>Plan Actual</CardTitle>
-              <CardDescription>Tu suscripción y límites</CardDescription>
-            </div>
-            <Badge variant={currentTenant.plan === "trial" ? "secondary" : "default"} className="text-lg py-1 px-3">
-              {currentTenant.plan === "trial" && "Prueba Gratuita"}
-              {currentTenant.plan === "basic" && "Básico"}
-              {currentTenant.plan === "premium" && "Premium"}
-              {currentTenant.plan === "enterprise" && "Enterprise"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Usuarios</p>
-              <p className="text-2xl font-bold">
-                {currentTenant.config.maxUsers === -1 ? "∞" : currentTenant.config.maxUsers}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Clientes</p>
-              <p className="text-2xl font-bold">
-                {currentTenant.config.maxClients === -1 ? "∞" : currentTenant.config.maxClients}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Vehículos</p>
-              <p className="text-2xl font-bold">
-                {currentTenant.config.maxVehicles === -1 ? "∞" : currentTenant.config.maxVehicles}
-              </p>
-            </div>
-            <div>
-              <p className="text-sm text-muted-foreground">Trabajos/mes</p>
-              <p className="text-2xl font-bold">
-                {currentTenant.config.maxMonthlyJobs === -1 ? "∞" : currentTenant.config.maxMonthlyJobs}
-              </p>
-            </div>
-          </div>
-        </CardContent>
-      </Card>
 
       {/* Form */}
       <Card>

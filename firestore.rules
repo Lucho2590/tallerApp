@@ -3,7 +3,7 @@ service cloud.firestore {
   match /databases/{database}/documents {
 
     // ============================================================================
-    // HELPER FUNCTIONS
+    // HELPER FUNCTIONS - SIMPLIFIED MODEL
     // ============================================================================
 
     // Check if user is authenticated
@@ -16,28 +16,22 @@ service cloud.firestore {
       return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
     }
 
-    // Check if user belongs to a tenant
+    // Check if user is a super admin
+    function isSuperAdmin() {
+      let userData = getUserData();
+      return userData.isSuperAdmin == true;
+    }
+
+    // Check if user belongs to a tenant (simplified: single tenantId)
     function userBelongsToTenant(tenantId) {
       let userData = getUserData();
-      return userData.tenants != null &&
-             tenantId in userData.tenants.keys();
+      return userData.tenantId == tenantId;
     }
 
-    // Check if user has a specific role in tenant
-    function userHasRole(tenantId, role) {
-      let userData = getUserData();
-      return userData.tenants != null &&
-             tenantId in userData.tenants.keys() &&
-             userData.tenants[tenantId].role == role;
-    }
-
-    // Check if user is owner or admin of tenant
-    function isOwnerOrAdmin(tenantId) {
-      let userData = getUserData();
-      return userData.tenants != null &&
-             tenantId in userData.tenants.keys() &&
-             (userData.tenants[tenantId].role == 'owner' ||
-              userData.tenants[tenantId].role == 'admin');
+    // Check if user is owner of tenant (simplified: check ownerId)
+    function isOwnerOfTenant(tenantId) {
+      let tenantData = get(/databases/$(database)/documents/tenants/$(tenantId)).data;
+      return tenantData.ownerId == request.auth.uid;
     }
 
     // Check if document belongs to user's tenant
@@ -50,18 +44,17 @@ service cloud.firestore {
     // ============================================================================
 
     match /users/{userId} {
-      // Users can read their own document
-      allow read: if isAuthenticated() && request.auth.uid == userId;
+      // Super admins can read all users, or users can read their own document
+      allow read: if isAuthenticated() && (isSuperAdmin() || request.auth.uid == userId);
 
-      // Users can update their own document (except sensitive fields)
+      // Users can update their own document
+      // Super admins can update any user
       allow update: if isAuthenticated() &&
-                       request.auth.uid == userId &&
-                       // Cannot modify these fields directly
-                       request.resource.data.email == resource.data.email;
+                       (isSuperAdmin() || request.auth.uid == userId);
 
       // User document is created by Firebase extension - no direct writes
-      allow create: if false;
-      allow delete: if false;
+      allow create: if isAuthenticated();
+      allow delete: if isSuperAdmin();
     }
 
     // ============================================================================
@@ -69,18 +62,17 @@ service cloud.firestore {
     // ============================================================================
 
     match /tenants/{tenantId} {
-      // Users can read tenants they belong to
-      allow read: if isAuthenticated() && userBelongsToTenant(tenantId);
+      // Super admins can read all tenants, or users can read their own tenant
+      allow read: if isAuthenticated() && (isSuperAdmin() || userBelongsToTenant(tenantId));
 
-      // Authenticated users can create a tenant (onboarding or new workspace)
-      // No need to check if they belong to it yet - they will be added after creation
+      // Authenticated users can create a tenant (onboarding)
       allow create: if isAuthenticated();
 
-      // Only owner or admin can update tenant
-      allow update: if isAuthenticated() && isOwnerOrAdmin(tenantId);
+      // Super admins or owner can update tenant
+      allow update: if isAuthenticated() && (isSuperAdmin() || isOwnerOfTenant(tenantId));
 
-      // Only owner can delete tenant
-      allow delete: if isAuthenticated() && userHasRole(tenantId, 'owner');
+      // Super admins or owner can delete tenant
+      allow delete: if isAuthenticated() && (isSuperAdmin() || isOwnerOfTenant(tenantId));
     }
 
     // ============================================================================
@@ -103,103 +95,71 @@ service cloud.firestore {
     // Clientes
     match /clientes/{clienteId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
     // Vehiculos
     match /vehiculos/{vehiculoId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
     // Trabajos
     match /trabajos/{trabajoId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
     // Turnos
     match /turnos/{turnoId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
-    }
-
-    // Productos (cuando lo implementes)
-    match /productos/{productoId} {
-      allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
-
-      allow create: if canAccessTenantData(request.resource.data.tenantId);
-
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
-    }
-
-    // Presupuestos (cuando lo implementes)
-    match /presupuestos/{presupuestoId} {
-      allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
-
-      allow create: if canAccessTenantData(request.resource.data.tenantId);
-
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
     // Productos
     match /productos/{productoId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
-    // Movimientos de Caja (cuando lo implementes)
+    // Presupuestos
+    match /presupuestos/{presupuestoId} {
+      allow read: if isAuthenticated() &&
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
+
+      allow create: if canAccessTenantData(request.resource.data.tenantId);
+
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
+    }
+
+    // Movimientos de Caja
     match /movimientos_caja/{movimientoId} {
       allow read: if isAuthenticated() &&
-                     belongsToUserTenant(resource.data.tenantId);
+                     (isSuperAdmin() || belongsToUserTenant(resource.data.tenantId));
 
       allow create: if canAccessTenantData(request.resource.data.tenantId);
 
-      allow update, delete: if canModifyTenantData(resource.data.tenantId);
-    }
-
-    // ============================================================================
-    // INVITATIONS
-    // ============================================================================
-
-    match /invitations/{invitationId} {
-      // Users can read invitations sent to their email
-      allow read: if isAuthenticated() &&
-                     request.auth.token.email == resource.data.email;
-
-      // Only owner or admin can create invitations
-      allow create: if isAuthenticated() &&
-                       isOwnerOrAdmin(request.resource.data.tenantId);
-
-      // Users can update invitations sent to them (accept/reject)
-      allow update: if isAuthenticated() &&
-                       request.auth.token.email == resource.data.email;
-
-      // Only creator can delete invitation
-      allow delete: if isAuthenticated() &&
-                       isOwnerOrAdmin(resource.data.tenantId);
+      allow update, delete: if isSuperAdmin() || canModifyTenantData(resource.data.tenantId);
     }
 
     // ============================================================================

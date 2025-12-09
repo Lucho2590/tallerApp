@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -10,11 +10,15 @@ import {
   Plus,
   Calculator,
   Loader2,
+  UserPlus,
+  Car,
+  ChevronDown,
 } from "lucide-react";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
-import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
+import { useProductos } from "@/hooks/productos/useProductos";
+import { useTenant } from "@/contexts/TenantContext";
 import { trabajoSchema, type TrabajoFormData } from "@/lib/validations/trabajo";
 import { TrabajoItem, PrioridadTrabajo, EstadoTrabajo } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -35,18 +39,36 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 export default function NuevoTrabajoPage() {
   const router = useRouter();
-  const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
+  const { currentTenant } = useTenant();
   const { createTrabajo, generarNumeroOrden } = useTrabajos();
   const { clientes } = useClientes();
   const { vehiculos } = useVehiculos();
+  const { productos } = useProductos();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [descripcionProducto, setDescripcionProducto] = useState("");
   const [cantidadProducto, setCantidadProducto] = useState<number>(1);
   const [precioUnitarioProducto, setPrecioUnitarioProducto] = useState<number>(0);
+  const [productoSeleccionadoId, setProductoSeleccionadoId] = useState<string | null>(null);
+  const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
+  const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Estados para cliente/vehículo nuevo
+  const [clienteMode, setClienteMode] = useState<"existente" | "nuevo">("existente");
+  const [vehiculoMode, setVehiculoMode] = useState<"existente" | "nuevo">("existente");
+  const [showSaveModal, setShowSaveModal] = useState(false);
+  const [pendingData, setPendingData] = useState<TrabajoFormData | null>(null);
 
   const [totalesCalculados, setTotalesCalculados] = useState({
     subtotal: 0,
@@ -58,8 +80,10 @@ export default function NuevoTrabajoPage() {
   const form = useForm<TrabajoFormData>({
     resolver: zodResolver(trabajoSchema),
     defaultValues: {
-      clienteId: "",
-      vehiculoId: "",
+      clienteId: undefined,
+      clienteTemp: undefined,
+      vehiculoId: undefined,
+      vehiculoTemp: undefined,
       descripcionGeneral: "",
       descuento: 0,
       manoDeObra: 0,
@@ -85,6 +109,41 @@ export default function NuevoTrabajoPage() {
   const vehiculosFiltrados = vehiculos.filter(
     (v) => !watchedClienteId || v.clienteId === watchedClienteId
   );
+
+  // Filtrar productos según búsqueda
+  const productosFiltrados = productos.filter((p) =>
+    p.nombre.toLowerCase().includes(descripcionProducto.toLowerCase()) ||
+    (p.descripcion && p.descripcion.toLowerCase().includes(descripcionProducto.toLowerCase())) ||
+    (p.codigo && p.codigo.toLowerCase().includes(descripcionProducto.toLowerCase()))
+  );
+
+  // Cerrar dropdown al hacer click fuera
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
+        setMostrarSugerencias(false);
+      }
+    };
+
+    if (mostrarSugerencias) {
+      document.addEventListener("mousedown", handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, [mostrarSugerencias]);
+
+  // Seleccionar un producto de las sugerencias
+  const seleccionarProducto = (productoId: string) => {
+    const producto = productos.find(p => p.id === productoId);
+    if (producto) {
+      setDescripcionProducto(producto.nombre);
+      setPrecioUnitarioProducto(producto.precio);
+      setProductoSeleccionadoId(producto.id);
+      setMostrarSugerencias(false);
+    }
+  };
 
   // Calcular totales
   useEffect(() => {
@@ -115,7 +174,7 @@ export default function NuevoTrabajoPage() {
   // Agregar producto
   const agregarProducto = () => {
     if (descripcionProducto.trim() && precioUnitarioProducto > 0 && cantidadProducto > 0) {
-      const nuevoItem = {
+      const nuevoItem: any = {
         id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         descripcion: descripcionProducto,
         cantidad: cantidadProducto,
@@ -123,17 +182,36 @@ export default function NuevoTrabajoPage() {
         subtotal: cantidadProducto * precioUnitarioProducto,
       };
 
+      // Si se seleccionó un producto del inventario, guardar su ID
+      if (productoSeleccionadoId) {
+        nuevoItem.productoId = productoSeleccionadoId;
+      }
+
       append(nuevoItem);
 
       // Limpiar campos
       setDescripcionProducto("");
       setCantidadProducto(1);
       setPrecioUnitarioProducto(0);
+      setProductoSeleccionadoId(null);
+      setMostrarSugerencias(false);
     }
   };
 
-  // Guardar trabajo
-  const onSubmit = async (data: TrabajoFormData) => {
+  // Mostrar modal de confirmación si hay datos temporales
+  const handleSubmitClick = async (data: TrabajoFormData) => {
+    // Si hay datos temporales, mostrar modal de confirmación
+    if (data.clienteTemp || data.vehiculoTemp) {
+      setPendingData(data);
+      setShowSaveModal(true);
+    } else {
+      // Si no hay datos temporales, crear directamente
+      await createTrabajoDirectly(data);
+    }
+  };
+
+  // Crear trabajo directamente (sin guardar cliente/vehículo)
+  const createTrabajoDirectly = async (data: TrabajoFormData) => {
     // 🏢 VALIDAR QUE HAYA TENANT
     if (!currentTenant) {
       alert("Error: No hay un taller seleccionado");
@@ -145,10 +223,12 @@ export default function NuevoTrabajoPage() {
       const numeroOrden = generarNumeroOrden();
 
       const trabajoData: any = {
-        tenantId: currentTenant.id, // 🏢 AGREGAR TENANT ID
+        tenantId: currentTenant.id,
         numero: numeroOrden,
         clienteId: data.clienteId,
         vehiculoId: data.vehiculoId,
+        clienteTemp: data.clienteTemp,
+        vehiculoTemp: data.vehiculoTemp,
         estado: EstadoTrabajo.PENDIENTE,
         items: data.items,
         subtotal: totalesCalculados.subtotal,
@@ -182,6 +262,95 @@ export default function NuevoTrabajoPage() {
       alert("Error al crear el trabajo. Por favor intenta nuevamente.");
     } finally {
       setIsSubmitting(false);
+      setShowSaveModal(false);
+      setPendingData(null);
+    }
+  };
+
+  // Crear trabajo y guardar cliente/vehículo si el usuario lo solicita
+  const createTrabajoAndSave = async (saveCliente: boolean, saveVehiculo: boolean) => {
+    if (!pendingData || !currentTenant) return;
+
+    setIsSubmitting(true);
+    try {
+      const numeroOrden = generarNumeroOrden();
+      let finalClienteId = pendingData.clienteId;
+      let finalVehiculoId = pendingData.vehiculoId;
+
+      //Guardar cliente si se solicita
+      if (saveCliente && pendingData.clienteTemp) {
+        const { clientesService } = await import("@/services/clientes/clientesService");
+        const clienteData: any = {
+          tenantId: currentTenant.id,
+          nombre: pendingData.clienteTemp.nombre,
+          apellido: pendingData.clienteTemp.apellido,
+          telefono: pendingData.clienteTemp.telefono || "",
+          email: pendingData.clienteTemp.email || "",
+        };
+        finalClienteId = await clientesService.create(clienteData);
+      }
+
+      // Guardar vehículo si se solicita
+      if (saveVehiculo && pendingData.vehiculoTemp) {
+        const { vehiculosService } = await import("@/services/vehiculos/vehiculosService");
+        const vehiculoData: any = {
+          tenantId: currentTenant.id,
+          clienteId: finalClienteId || "",
+          patente: pendingData.vehiculoTemp.patente,
+          modeloMarca: pendingData.vehiculoTemp.modeloMarca,
+        };
+        finalVehiculoId = await vehiculosService.create(vehiculoData);
+      }
+
+      // Crear trabajo
+      const trabajoData: any = {
+        tenantId: currentTenant.id,
+        numero: numeroOrden,
+        clienteId: finalClienteId,
+        vehiculoId: finalVehiculoId,
+        estado: EstadoTrabajo.PENDIENTE,
+        items: pendingData.items,
+        subtotal: totalesCalculados.subtotal,
+        impuestos: totalesCalculados.montoImpuestos,
+        total: totalesCalculados.total,
+        aplicarIVA: pendingData.aplicarIVA,
+        prioridad: pendingData.prioridad,
+      };
+
+      // Guardar datos temporales solo si NO se guardaron
+      if (!saveCliente && pendingData.clienteTemp) {
+        trabajoData.clienteTemp = pendingData.clienteTemp;
+      }
+      if (!saveVehiculo && pendingData.vehiculoTemp) {
+        trabajoData.vehiculoTemp = pendingData.vehiculoTemp;
+      }
+
+      // Agregar campos opcionales
+      if (pendingData.descripcionGeneral && pendingData.descripcionGeneral.trim()) {
+        trabajoData.descripcionGeneral = pendingData.descripcionGeneral;
+      }
+      if (pendingData.descuento && pendingData.descuento > 0) {
+        trabajoData.descuento = pendingData.descuento;
+      }
+      if (pendingData.manoDeObra && pendingData.manoDeObra > 0) {
+        trabajoData.manoDeObra = pendingData.manoDeObra;
+      }
+      if (pendingData.tecnicoAsignado && pendingData.tecnicoAsignado.trim()) {
+        trabajoData.tecnicoAsignado = pendingData.tecnicoAsignado;
+      }
+      if (pendingData.observacionesTrabajo && pendingData.observacionesTrabajo.trim()) {
+        trabajoData.observacionesTrabajo = pendingData.observacionesTrabajo;
+      }
+
+      await createTrabajo(trabajoData);
+      router.push("/trabajos");
+    } catch (error) {
+      console.error("Error al crear trabajo:", error);
+      alert("Error al crear el trabajo. Por favor intenta nuevamente.");
+    } finally {
+      setIsSubmitting(false);
+      setShowSaveModal(false);
+      setPendingData(null);
     }
   };
 
@@ -193,8 +362,38 @@ export default function NuevoTrabajoPage() {
     }).format(amount);
   };
 
+  // Validar tenant antes de renderizar
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Wrench className="h-16 w-16 text-muted-foreground mx-auto" />
+          <div>
+            <h3 className="text-lg font-semibold">No hay organización seleccionada</h3>
+            <p className="text-muted-foreground">
+              Por favor, completa el proceso de onboarding o selecciona una organización.
+            </p>
+          </div>
+          <Button onClick={() => window.location.href = "/onboarding"}>
+            Ir a Onboarding
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 max-w-6xl mx-auto">
+      {/* MVP: Banner de advertencia de límite deshabilitado */}
+      {/* {jobsLimit.isNearLimit && !jobsLimit.isAtLimit && (
+        <ResourceLimitBanner
+          resourceName="trabajos mensuales"
+          current={jobsLimit.current}
+          max={jobsLimit.max}
+          percentage={jobsLimit.percentage}
+        />
+      )} */}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -220,61 +419,203 @@ export default function NuevoTrabajoPage() {
       {/* Formulario */}
       <div className="bg-card rounded-lg border p-6">
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+          <form onSubmit={form.handleSubmit(handleSubmitClick)} className="space-y-6">
             {/* Información básica */}
             <div className="space-y-4">
               <h4 className="text-sm font-medium">Información Básica</h4>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="clienteId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Cliente *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar cliente" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {clientes.map((cliente) => (
-                            <SelectItem key={cliente.id} value={cliente.id}>
-                              {cliente.nombre} {cliente.apellido}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+              {/* CLIENTE */}
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Cliente *</label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={clienteMode === "existente" ? "default" : "outline"}
+                      onClick={() => {
+                        setClienteMode("existente");
+                        form.setValue("clienteTemp", undefined);
+                      }}
+                    >
+                      Existente
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={clienteMode === "nuevo" ? "default" : "outline"}
+                      onClick={() => {
+                        setClienteMode("nuevo");
+                        form.setValue("clienteId", undefined);
+                      }}
+                    >
+                      <UserPlus className="h-4 w-4 mr-1" />
+                      Nuevo
+                    </Button>
+                  </div>
+                </div>
 
-                <FormField
-                  control={form.control}
-                  name="vehiculoId"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Vehículo *</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Seleccionar vehículo" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {vehiculosFiltrados.map((vehiculo) => (
-                            <SelectItem key={vehiculo.id} value={vehiculo.id}>
-                              {vehiculo.patente} - {vehiculo.modeloMarca}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                {clienteMode === "existente" ? (
+                  <FormField
+                    control={form.control}
+                    name="clienteId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar cliente" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {clientes.map((cliente) => (
+                              <SelectItem key={cliente.id} value={cliente.id}>
+                                {cliente.nombre} {cliente.apellido}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="clienteTemp.nombre"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Nombre *" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="clienteTemp.apellido"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Apellido *" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="clienteTemp.telefono"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Teléfono" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="clienteTemp.email"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Email" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
+              </div>
+
+              {/* VEHÍCULO */}
+              <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Vehículo *</label>
+                  <div className="flex gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={vehiculoMode === "existente" ? "default" : "outline"}
+                      onClick={() => {
+                        setVehiculoMode("existente");
+                        form.setValue("vehiculoTemp", undefined);
+                      }}
+                    >
+                      Existente
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={vehiculoMode === "nuevo" ? "default" : "outline"}
+                      onClick={() => {
+                        setVehiculoMode("nuevo");
+                        form.setValue("vehiculoId", undefined);
+                      }}
+                    >
+                      <Car className="h-4 w-4 mr-1" />
+                      Nuevo
+                    </Button>
+                  </div>
+                </div>
+
+                {vehiculoMode === "existente" ? (
+                  <FormField
+                    control={form.control}
+                    name="vehiculoId"
+                    render={({ field }) => (
+                      <FormItem>
+                        <Select onValueChange={field.onChange} value={field.value}>
+                          <FormControl>
+                            <SelectTrigger>
+                              <SelectValue placeholder="Seleccionar vehículo" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            {vehiculosFiltrados.map((vehiculo) => (
+                              <SelectItem key={vehiculo.id} value={vehiculo.id}>
+                                {vehiculo.patente} - {vehiculo.modeloMarca}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <FormField
+                      control={form.control}
+                      name="vehiculoTemp.patente"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Patente *" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="vehiculoTemp.modeloMarca"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormControl>
+                            <Input placeholder="Modelo/Marca *" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                )}
               </div>
 
               <FormField
@@ -296,7 +637,7 @@ export default function NuevoTrabajoPage() {
               />
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
+                {/* <FormField
                   control={form.control}
                   name="tecnicoAsignado"
                   render={({ field }) => (
@@ -308,7 +649,7 @@ export default function NuevoTrabajoPage() {
                       <FormMessage />
                     </FormItem>
                   )}
-                />
+                /> */}
 
                 <FormField
                   control={form.control}
@@ -355,11 +696,56 @@ export default function NuevoTrabajoPage() {
                 {/* Panel izquierdo: Agregar producto */}
                 <div className="space-y-3">
                   <label className="text-sm font-medium">Agregar Producto/Servicio:</label>
-                  <Input
-                    placeholder="Descripción del producto/servicio..."
-                    value={descripcionProducto}
-                    onChange={(e) => setDescripcionProducto(e.target.value)}
-                  />
+                  <div className="relative" ref={dropdownRef}>
+                    <Input
+                      placeholder="Buscar producto o escribir descripción..."
+                      value={descripcionProducto}
+                      onChange={(e) => {
+                        setDescripcionProducto(e.target.value);
+                        setMostrarSugerencias(e.target.value.length > 0);
+                        setProductoSeleccionadoId(null); // Reset al escribir
+                      }}
+                      onFocus={() => setMostrarSugerencias(descripcionProducto.length > 0)}
+                    />
+
+                    {/* Dropdown de sugerencias */}
+                    {mostrarSugerencias && productosFiltrados.length > 0 && (
+                      <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-60 overflow-y-auto">
+                        {productosFiltrados.slice(0, 10).map((producto) => (
+                          <button
+                            key={producto.id}
+                            type="button"
+                            className="w-full text-left px-3 py-2 hover:bg-accent transition-colors border-b last:border-b-0"
+                            onClick={() => seleccionarProducto(producto.id)}
+                          >
+                            <div className="flex justify-between items-start">
+                              <div className="flex-1">
+                                <p className="font-medium text-sm">{producto.nombre}</p>
+                                {producto.descripcion && (
+                                  <p className="text-xs text-muted-foreground line-clamp-1">
+                                    {producto.descripcion}
+                                  </p>
+                                )}
+                                {producto.codigo && (
+                                  <p className="text-xs text-muted-foreground">
+                                    Código: {producto.codigo}
+                                  </p>
+                                )}
+                              </div>
+                              <div className="ml-2 text-right">
+                                <p className="text-sm font-medium text-primary">
+                                  ${producto.precio.toFixed(2)}
+                                </p>
+                                <p className="text-xs text-muted-foreground">
+                                  Stock: {producto.stock}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
 
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-2 flex-1">
@@ -668,6 +1054,67 @@ export default function NuevoTrabajoPage() {
           </form>
         </Form>
       </div>
+
+      {/* Modal de confirmación para guardar cliente/vehículo */}
+      <Dialog open={showSaveModal} onOpenChange={setShowSaveModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Guardar Cliente y Vehículo</DialogTitle>
+            <DialogDescription>
+              Has ingresado datos de un cliente y/o vehículo nuevo. ¿Querés guardarlos en tu base de datos para futuros trabajos?
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {pendingData?.clienteTemp && (
+              <div className="p-3 border rounded-lg bg-muted/50">
+                <p className="text-sm font-medium mb-2">Cliente Nuevo:</p>
+                <p className="text-sm text-muted-foreground">
+                  {pendingData.clienteTemp.nombre} {pendingData.clienteTemp.apellido}
+                  {pendingData.clienteTemp.telefono && ` - ${pendingData.clienteTemp.telefono}`}
+                </p>
+              </div>
+            )}
+
+            {pendingData?.vehiculoTemp && (
+              <div className="p-3 border rounded-lg bg-muted/50">
+                <p className="text-sm font-medium mb-2">Vehículo Nuevo:</p>
+                <p className="text-sm text-muted-foreground">
+                  {pendingData.vehiculoTemp.patente} - {pendingData.vehiculoTemp.modeloMarca}
+                </p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => createTrabajoDirectly(pendingData!)}
+              disabled={isSubmitting}
+            >
+              Solo esta vez
+            </Button>
+            <Button
+              type="button"
+              onClick={() => createTrabajoAndSave(
+                !!pendingData?.clienteTemp,
+                !!pendingData?.vehiculoTemp
+              )}
+              disabled={isSubmitting}
+            >
+              {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Guardando...
+                </>
+              ) : (
+                "Guardar y Crear Orden"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

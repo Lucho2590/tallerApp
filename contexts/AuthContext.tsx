@@ -39,15 +39,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // Reload user data (without waiting for Rowy - user already exists)
   const reloadUserData = async (firebaseUser: FirebaseUser) => {
     try {
-      // Get user data (this call already returns the user with tenants info)
+      // Get user data
       const userData = await usersService.getById(firebaseUser.uid);
 
       if (userData) {
         setUser(userData);
 
-        // Check if user needs onboarding directly from userData (avoid extra call)
-        const tenants = userData.tenants || {};
-        const needsOb = Object.keys(tenants).length === 0;
+        // Check if user needs onboarding: no tenant and not a superadmin
+        const needsOb = !userData.tenantId && !userData.isSuperAdmin;
         setNeedsOnboarding(needsOb);
 
         setAuthState("authenticated");
@@ -66,7 +65,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       // Wait a bit for Rowy extension to create the user document
       await new Promise(resolve => setTimeout(resolve, 1000));
 
-      // Initialize user with tenant fields if needed
+      // Initialize user with basic fields
       await usersService.initializeUser(
         firebaseUser.uid,
         firebaseUser.email || "",

@@ -1,3 +1,6 @@
+// Export tenant types
+export type { Tenant, TenantUser } from "./tenant"
+
 // Enums
 export enum UserRole {
   ADMIN = "admin",
@@ -146,8 +149,23 @@ export interface PresupuestoItem {
 export interface Trabajo extends BaseEntity {
   tenantId: string; // 🏢 MULTITENANT
   numero: string; // Número de orden autogenerado
-  clienteId: string;
-  vehiculoId: string;
+  clienteId?: string; // Opcional si se usa clienteTemp
+  vehiculoId?: string; // Opcional si se usa vehiculoTemp
+
+  // Datos temporales de cliente (cuando no se guarda en la BD)
+  clienteTemp?: {
+    nombre: string;
+    apellido: string;
+    telefono?: string;
+    email?: string;
+  };
+
+  // Datos temporales de vehículo (cuando no se guarda en la BD)
+  vehiculoTemp?: {
+    patente: string;
+    modeloMarca: string;
+  };
+
   descripcionGeneral?: string; // Descripción general del trabajo
   items: TrabajoItem[]; // Productos/servicios
   subtotal: number;
@@ -170,6 +188,7 @@ export interface TrabajoItem {
   cantidad: number;
   precioUnitario: number;
   subtotal: number;
+  productoId?: string; // Referencia al producto del inventario (opcional)
 }
 
 // Movimiento de Caja
