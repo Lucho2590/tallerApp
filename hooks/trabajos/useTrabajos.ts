@@ -107,9 +107,12 @@ export function useTrabajos(fechaKey?: string) {
     [fetchTrabajos, currentTenant]
   );
 
-  const generarNumeroOrden = useCallback(() => {
-    return trabajosService.generarNumeroOrden();
-  }, []);
+  const generarNumeroOrden = useCallback(async () => {
+    if (!currentTenant) {
+      throw new Error("No hay tenant seleccionado");
+    }
+    return await trabajosService.generarNumeroOrden(currentTenant.id); // 🏢 PASAR TENANT ID
+  }, [currentTenant]);
 
   const getById = useCallback(async (id: string) => {
     if (!currentTenant) {

@@ -116,12 +116,23 @@ export const turnosService = {
       }
 
       const now = Timestamp.now();
-      const docRef = await addDoc(collection(db, COLLECTION_NAME), {
+
+      // Limpiar campos undefined (Firebase no los acepta)
+      const cleanData: any = {
         ...turnoData,
         fecha: Timestamp.fromDate(turnoData.fecha),
         fechaCreacion: now,
         fechaActualizacion: now,
+      };
+
+      // Eliminar campos undefined
+      Object.keys(cleanData).forEach(key => {
+        if (cleanData[key] === undefined) {
+          delete cleanData[key];
+        }
       });
+
+      const docRef = await addDoc(collection(db, COLLECTION_NAME), cleanData);
       return docRef.id;
     } catch (error) {
       console.error("Error al crear turno:", error);
@@ -150,6 +161,14 @@ export const turnosService = {
       if (turnoData.fecha) {
         updateData.fecha = Timestamp.fromDate(turnoData.fecha);
       }
+
+      // Eliminar campos undefined (Firebase no los acepta)
+      Object.keys(updateData).forEach(key => {
+        if (updateData[key] === undefined) {
+          delete updateData[key];
+        }
+      });
+
       await updateDoc(docRef, updateData);
     } catch (error) {
       console.error("Error al actualizar turno:", error);

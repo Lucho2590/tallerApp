@@ -64,3 +64,12 @@ export interface TenantUser {
   createdAt: Timestamp;
   updatedAt: Timestamp;
 }
+
+/**
+ * Counter document for generating correlative work order numbers per tenant
+ * Collection: tenant-counters/{tenantId}
+ */
+export interface TenantCounter {
+  trabajosCounter: number;       // Current counter for work orders
+  updatedAt: Timestamp;           // Last update timestamp
+}

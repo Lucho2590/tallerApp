@@ -6,7 +6,7 @@ export const turnoSchema = z.object({
   clienteId: z.string().optional(),
   clienteTemp: z.object({
     nombre: z.string().min(1, "Nombre es requerido"),
-    apellido: z.string().min(1, "Apellido es requerido"),
+    apellido: z.string(), // Puede estar vacío
     telefono: z.string().optional(),
   }).optional(),
 

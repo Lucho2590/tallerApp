@@ -49,8 +49,8 @@ export default function AgendaPage() {
   const { currentTenant } = useTenant();
   const [selectedDate, setSelectedDate] = useState(new Date());
   const { turnos, loading, error, createTurno, updateTurno, deleteTurno } = useTurnos(selectedDate);
-  const { clientes } = useClientes();
-  const { vehiculos } = useVehiculos();
+  const { clientes, refetch: refetchClientes } = useClientes();
+  const { vehiculos, refetch: refetchVehiculos } = useVehiculos();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingTurno, setEditingTurno] = useState<Turno | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -75,9 +75,11 @@ export default function AgendaPage() {
     reset,
     setValue,
     watch,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<TurnoFormData>({
-    resolver: zodResolver(turnoSchema),
+    // No usar resolver para poder controlar la validación manualmente
     defaultValues: {
       estado: EstadoTurno.PENDIENTE,
     },
@@ -187,46 +189,62 @@ export default function AgendaPage() {
       return;
     }
 
+    // Limpiar errores previos
+    clearErrors();
+
     // Determinar si hay datos temporales
     const isClienteTemp = !selectedCliente && clienteSearchText.trim();
     const isVehiculoTemp = !selectedVehiculo && vehiculoSearchText.trim();
 
+    // Preparar datos completos
+    const turnoData: TurnoFormData = { ...data };
+
+    if (isClienteTemp) {
+      const [nombre, ...apellidoParts] = clienteSearchText.trim().split(" ");
+      turnoData.clienteTemp = {
+        nombre: nombre || "",
+        apellido: apellidoParts.join(" ") || "", // Si no hay apellido, dejar vacío
+      };
+      turnoData.clienteId = undefined;
+    } else {
+      turnoData.clienteId = selectedCliente?.id;
+      turnoData.clienteTemp = undefined;
+    }
+
+    if (isVehiculoTemp) {
+      turnoData.vehiculoTemp = {
+        patente: "Sin especificar", // La patente se completa después
+        modeloMarca: vehiculoSearchText.trim(), // Lo que escribe va al modelo/marca
+      };
+      turnoData.vehiculoId = undefined;
+    } else {
+      turnoData.vehiculoId = selectedVehiculo?.id;
+      turnoData.vehiculoTemp = undefined;
+    }
+
+    // Validar con Zod
+    const validation = turnoSchema.safeParse(turnoData);
+
+    if (!validation.success) {
+      // Mostrar errores de validación
+      if (validation.error?.errors) {
+        validation.error.errors.forEach((err) => {
+          const field = err.path[0] as keyof TurnoFormData;
+          setError(field, { message: err.message });
+        });
+      } else {
+        alert("Error de validación del formulario. Revisá los campos.");
+      }
+      return;
+    }
+
+    // Si hay datos temporales, mostrar modal
     if (isClienteTemp || isVehiculoTemp) {
-      // Preparar datos temporales
-      const turnoData: TurnoFormData = { ...data };
-
-      if (isClienteTemp) {
-        const [nombre, ...apellidoParts] = clienteSearchText.trim().split(" ");
-        turnoData.clienteTemp = {
-          nombre: nombre || "",
-          apellido: apellidoParts.join(" ") || nombre,
-        };
-        turnoData.clienteId = undefined;
-      } else {
-        turnoData.clienteId = selectedCliente?.id;
-        turnoData.clienteTemp = undefined;
-      }
-
-      if (isVehiculoTemp) {
-        turnoData.vehiculoTemp = {
-          patente: vehiculoSearchText.trim(),
-          modeloMarca: "Sin especificar",
-        };
-        turnoData.vehiculoId = undefined;
-      } else {
-        turnoData.vehiculoId = selectedVehiculo?.id;
-        turnoData.vehiculoTemp = undefined;
-      }
-
       setPendingData(turnoData);
       setShowSaveModal(true);
     } else {
       // Todo es existente, crear directamente
-      await createTurnoDirectly({
-        ...data,
-        clienteId: selectedCliente?.id,
-        vehiculoId: selectedVehiculo?.id,
-      });
+      await createTurnoDirectly(turnoData);
     }
   };
 
@@ -265,6 +283,8 @@ export default function AgendaPage() {
           telefono: pendingData.clienteTemp.telefono || "",
           email: "",
         });
+        // Recargar lista de clientes
+        await refetchClientes();
       }
 
       // Guardar vehículo si se solicitó
@@ -276,6 +296,8 @@ export default function AgendaPage() {
           ...pendingData.vehiculoTemp,
           combustible: "Sin especificar",
         });
+        // Recargar lista de vehículos
+        await refetchVehiculos();
       }
 
       const turnoData: TurnoFormData = {
@@ -289,8 +311,16 @@ export default function AgendaPage() {
       await createTurno({ ...turnoData, tenantId: currentTenant.id });
       setShowSaveModal(false);
       handleCloseDialog();
+
+      // Mostrar mensaje de recomendación si se guardaron datos
+      if (saveCliente || saveVehiculo) {
+        setTimeout(() => {
+          alert("✅ Turno creado exitosamente.\n\n💡 Recordá completar los datos del cliente y su vehículo en las secciones correspondientes.");
+        }, 300);
+      }
     } catch (err) {
       console.error("Error al guardar turno:", err);
+      alert("❌ Error al crear el turno. Intentá nuevamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -319,7 +349,7 @@ export default function AgendaPage() {
   const getVehiculoInfo = (turno: Turno) => {
     if (turno.vehiculoId) {
       const vehiculo = vehiculos.find((v) => v.id === turno.vehiculoId);
-      return vehiculo ? `${vehiculo.patente} - ${vehiculo.modeloMarca}` : "Vehículo no encontrado";
+      return vehiculo ? `${vehiculo.patente} - ${vehiculo.modeloMarca} - ${vehiculo.combustible}` : "Vehículo no encontrado";
     } else if (turno.vehiculoTemp) {
       return `${turno.vehiculoTemp.patente} - ${turno.vehiculoTemp.modeloMarca}`;
     }
@@ -402,6 +432,7 @@ export default function AgendaPage() {
                       setClienteSearchText(e.target.value);
                       setShowClienteSuggestions(true);
                       setSelectedCliente(null);
+                      setValue("clienteId", undefined);
                     }}
                     onFocus={() => setShowClienteSuggestions(true)}
                     placeholder="Buscar cliente por nombre..."
@@ -415,6 +446,7 @@ export default function AgendaPage() {
                       onClick={() => {
                         setSelectedCliente(null);
                         setClienteSearchText("");
+                        setValue("clienteId", undefined);
                       }}
                     >
                       <X className="h-4 w-4" />
@@ -463,6 +495,7 @@ export default function AgendaPage() {
                       setVehiculoSearchText(e.target.value);
                       setShowVehiculoSuggestions(true);
                       setSelectedVehiculo(null);
+                      setValue("vehiculoId", undefined);
                     }}
                     onFocus={() => setShowVehiculoSuggestions(true)}
                     placeholder="Buscar vehículo por patente..."
@@ -476,6 +509,7 @@ export default function AgendaPage() {
                       onClick={() => {
                         setSelectedVehiculo(null);
                         setVehiculoSearchText("");
+                        setValue("vehiculoId", undefined);
                       }}
                     >
                       <X className="h-4 w-4" />
@@ -519,8 +553,14 @@ export default function AgendaPage() {
                     valueAsDate: false,
                     setValueAs: (value) => {
                       if (!value) return undefined;
-                      const [year, month, day] = value.split("-").map(Number);
-                      return new Date(year, month - 1, day);
+                      // Si ya es un Date, devolverlo directamente
+                      if (value instanceof Date) return value;
+                      // Si es un string, procesarlo
+                      if (typeof value === 'string') {
+                        const [year, month, day] = value.split("-").map(Number);
+                        return new Date(year, month - 1, day);
+                      }
+                      return undefined;
                     }
                   })}
                   defaultValue={selectedDate.toISOString().split("T")[0]}

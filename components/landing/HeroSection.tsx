@@ -92,14 +92,14 @@ export function HeroSection() {
               </Button>
             </Link>
 
-            <Button
+            {/* <Button
               size="lg"
               variant="outline"
               className="border-slate-600 text-slate-300 hover:bg-slate-800 hover:text-white px-8 py-6 text-lg rounded-xl"
             >
               <Play className="mr-2 h-5 w-5" />
               Ver demo
-            </Button>
+            </Button> */}
           </motion.div>
 
           {/* Trust badges */}

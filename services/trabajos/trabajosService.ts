@@ -14,6 +14,7 @@ import {
 import { db } from "@/lib/firebase/config";
 import { Trabajo } from "@/types";
 import { productosService } from "@/services/productos/productosService";
+import { tenantCountersService } from "@/services/tenants/tenantCountersService";
 
 const COLLECTION_NAME = "trabajos";
 
@@ -28,17 +29,10 @@ const cleanUndefined = <T extends Record<string, any>>(obj: T): T => {
   return cleaned;
 };
 
-// Contador global para números de orden (en producción esto debería ser más robusto)
-let ordenCounter = 1;
-
 export const trabajosService = {
-  // Generar número de orden único (TODO: mejorar para multitenant)
-  generarNumeroOrden(): string {
-    const fecha = new Date();
-    const año = fecha.getFullYear();
-    const mes = String(fecha.getMonth() + 1).padStart(2, "0");
-    const numero = String(ordenCounter++).padStart(4, "0");
-    return `OT-${año}${mes}-${numero}`;
+  // Generar número de orden único usando contador de Firestore (multitenant)
+  async generarNumeroOrden(tenantId: string): Promise<string> {
+    return await tenantCountersService.getNextWorkOrderNumber(tenantId);
   },
 
   // Obtener todos los trabajos (FILTRADO POR TENANT)
