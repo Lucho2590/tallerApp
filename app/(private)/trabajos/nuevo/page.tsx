@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -13,6 +13,7 @@ import {
   UserPlus,
   Car,
   ChevronDown,
+  X,
 } from "lucide-react";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { useClientes } from "@/hooks/clientes/useClientes";
@@ -52,8 +53,8 @@ export default function NuevoTrabajoPage() {
   const router = useRouter();
   const { currentTenant } = useTenant();
   const { createTrabajo, generarNumeroOrden } = useTrabajos();
-  const { clientes } = useClientes();
-  const { vehiculos } = useVehiculos();
+  const { clientes, refetch: refetchClientes } = useClientes();
+  const { vehiculos, refetch: refetchVehiculos } = useVehiculos();
   const { productos } = useProductos();
 
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -64,9 +65,17 @@ export default function NuevoTrabajoPage() {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
-  // Estados para cliente/vehículo nuevo
-  const [clienteMode, setClienteMode] = useState<"existente" | "nuevo">("existente");
-  const [vehiculoMode, setVehiculoMode] = useState<"existente" | "nuevo">("existente");
+  // Estados para autocomplete de cliente
+  const [clienteSearchText, setClienteSearchText] = useState("");
+  const [showClienteSuggestions, setShowClienteSuggestions] = useState(false);
+  const [selectedCliente, setSelectedCliente] = useState<{ id: string; nombre: string; apellido: string } | null>(null);
+
+  // Estados para autocomplete de vehículo
+  const [vehiculoSearchText, setVehiculoSearchText] = useState("");
+  const [showVehiculoSuggestions, setShowVehiculoSuggestions] = useState(false);
+  const [selectedVehiculo, setSelectedVehiculo] = useState<{ id: string; patente: string; modeloMarca: string } | null>(null);
+
+  // Modal de confirmación y datos temporales
   const [showSaveModal, setShowSaveModal] = useState(false);
   const [pendingData, setPendingData] = useState<TrabajoFormData | null>(null);
 
@@ -78,7 +87,7 @@ export default function NuevoTrabajoPage() {
   });
 
   const form = useForm<TrabajoFormData>({
-    resolver: zodResolver(trabajoSchema),
+    // No usar resolver para poder controlar la validación manualmente
     defaultValues: {
       clienteId: undefined,
       clienteTemp: undefined,
@@ -103,12 +112,31 @@ export default function NuevoTrabajoPage() {
   const watchedDescuento = form.watch("descuento");
   const watchedManoDeObra = form.watch("manoDeObra");
   const watchedAplicarIVA = form.watch("aplicarIVA");
-  const watchedClienteId = form.watch("clienteId");
 
-  // Filtrar vehículos por cliente seleccionado
-  const vehiculosFiltrados = vehiculos.filter(
-    (v) => !watchedClienteId || v.clienteId === watchedClienteId
-  );
+  // Filtrar clientes según búsqueda (autocomplete)
+  const clientesFiltrados = useMemo(() => {
+    if (!clienteSearchText) return [];
+    return clientes
+      .filter((c) =>
+        `${c.nombre} ${c.apellido}`.toLowerCase().includes(clienteSearchText.toLowerCase())
+      )
+      .slice(0, 5);
+  }, [clientes, clienteSearchText]);
+
+  // Filtrar vehículos según búsqueda y cliente seleccionado (autocomplete)
+  const vehiculosFiltrados = useMemo(() => {
+    if (!vehiculoSearchText) return [];
+    return vehiculos
+      .filter((v) => {
+        // Si hay un cliente seleccionado, solo mostrar sus vehículos
+        const matchesCliente = selectedCliente ? v.clienteId === selectedCliente.id : true;
+        // Filtrar por texto de búsqueda
+        const matchesSearch = v.patente.toLowerCase().includes(vehiculoSearchText.toLowerCase()) ||
+                              v.modeloMarca.toLowerCase().includes(vehiculoSearchText.toLowerCase());
+        return matchesCliente && matchesSearch;
+      })
+      .slice(0, 5);
+  }, [vehiculos, vehiculoSearchText, selectedCliente]);
 
   // Filtrar productos según búsqueda
   const productosFiltrados = productos.filter((p) =>
@@ -171,6 +199,23 @@ export default function NuevoTrabajoPage() {
     });
   }, [watchedItems, watchedDescuento, watchedManoDeObra, watchedAplicarIVA]);
 
+  // Funciones de selección para autocomplete
+  const handleSelectCliente = (cliente: { id: string; nombre: string; apellido: string }) => {
+    setSelectedCliente(cliente);
+    setClienteSearchText(`${cliente.nombre} ${cliente.apellido}`);
+    setShowClienteSuggestions(false);
+    form.setValue("clienteId", cliente.id);
+    form.setValue("clienteTemp", undefined);
+  };
+
+  const handleSelectVehiculo = (vehiculo: { id: string; patente: string; modeloMarca: string }) => {
+    setSelectedVehiculo(vehiculo);
+    setVehiculoSearchText(vehiculo.patente);
+    setShowVehiculoSuggestions(false);
+    form.setValue("vehiculoId", vehiculo.id);
+    form.setValue("vehiculoTemp", undefined);
+  };
+
   // Agregar producto
   const agregarProducto = () => {
     if (descripcionProducto.trim() && precioUnitarioProducto > 0 && cantidadProducto > 0) {
@@ -200,13 +245,70 @@ export default function NuevoTrabajoPage() {
 
   // Mostrar modal de confirmación si hay datos temporales
   const handleSubmitClick = async (data: TrabajoFormData) => {
+    console.log("=== INICIO handleSubmitClick ===");
+    console.log("data recibido:", data);
+    console.log("selectedCliente:", selectedCliente);
+    console.log("clienteSearchText:", clienteSearchText);
+    console.log("selectedVehiculo:", selectedVehiculo);
+    console.log("vehiculoSearchText:", vehiculoSearchText);
+
+    // 🏢 VALIDAR QUE HAYA TENANT
+    if (!currentTenant) {
+      alert("Error: No hay un taller seleccionado");
+      return;
+    }
+
+    // Validar que haya cliente y vehículo
+    if (!selectedCliente && !clienteSearchText.trim()) {
+      alert("Error: Debes ingresar un cliente");
+      return;
+    }
+
+    if (!selectedVehiculo && !vehiculoSearchText.trim()) {
+      alert("Error: Debes ingresar un vehículo");
+      return;
+    }
+
+    // Determinar si hay datos temporales
+    const isClienteTemp = !selectedCliente && clienteSearchText.trim();
+    const isVehiculoTemp = !selectedVehiculo && vehiculoSearchText.trim();
+
+    console.log("isClienteTemp:", isClienteTemp);
+    console.log("isVehiculoTemp:", isVehiculoTemp);
+
+    // Preparar datos completos
+    const trabajoData: TrabajoFormData = { ...data };
+
+    if (isClienteTemp) {
+      const [nombre, ...apellidoParts] = clienteSearchText.trim().split(" ");
+      trabajoData.clienteTemp = {
+        nombre: nombre || "",
+        apellido: apellidoParts.join(" ") || "",
+      };
+      trabajoData.clienteId = undefined;
+    } else {
+      trabajoData.clienteId = selectedCliente?.id;
+      trabajoData.clienteTemp = undefined;
+    }
+
+    if (isVehiculoTemp) {
+      trabajoData.vehiculoTemp = {
+        patente: "Sin especificar",
+        modeloMarca: vehiculoSearchText.trim(),
+      };
+      trabajoData.vehiculoId = undefined;
+    } else {
+      trabajoData.vehiculoId = selectedVehiculo?.id;
+      trabajoData.vehiculoTemp = undefined;
+    }
+
     // Si hay datos temporales, mostrar modal de confirmación
-    if (data.clienteTemp || data.vehiculoTemp) {
-      setPendingData(data);
+    if (isClienteTemp || isVehiculoTemp) {
+      setPendingData(trabajoData);
       setShowSaveModal(true);
     } else {
       // Si no hay datos temporales, crear directamente
-      await createTrabajoDirectly(data);
+      await createTrabajoDirectly(trabajoData);
     }
   };
 
@@ -220,7 +322,7 @@ export default function NuevoTrabajoPage() {
 
     setIsSubmitting(true);
     try {
-      const numeroOrden = generarNumeroOrden();
+      const numeroOrden = await generarNumeroOrden();
 
       const trabajoData: any = {
         tenantId: currentTenant.id,
@@ -269,11 +371,21 @@ export default function NuevoTrabajoPage() {
 
   // Crear trabajo y guardar cliente/vehículo si el usuario lo solicita
   const createTrabajoAndSave = async (saveCliente: boolean, saveVehiculo: boolean) => {
-    if (!pendingData || !currentTenant) return;
+    console.log("INICIO createTrabajoAndSave", { saveCliente, saveVehiculo, pendingData, currentTenant });
+
+    if (!pendingData || !currentTenant) {
+      console.error("ERROR: Falta pendingData o currentTenant", { pendingData, currentTenant });
+      return;
+    }
 
     setIsSubmitting(true);
     try {
-      const numeroOrden = generarNumeroOrden();
+      console.log("=== DEBUG createTrabajoAndSave ===");
+      console.log("saveCliente:", saveCliente, "saveVehiculo:", saveVehiculo);
+      console.log("pendingData:", pendingData);
+      console.log("totalesCalculados:", totalesCalculados);
+
+      const numeroOrden = await generarNumeroOrden();
       let finalClienteId = pendingData.clienteId;
       let finalVehiculoId = pendingData.vehiculoId;
 
@@ -288,6 +400,8 @@ export default function NuevoTrabajoPage() {
           email: pendingData.clienteTemp.email || "",
         };
         finalClienteId = await clientesService.create(clienteData);
+        // Recargar lista de clientes
+        await refetchClientes();
       }
 
       // Guardar vehículo si se solicita
@@ -298,8 +412,11 @@ export default function NuevoTrabajoPage() {
           clienteId: finalClienteId || "",
           patente: pendingData.vehiculoTemp.patente,
           modeloMarca: pendingData.vehiculoTemp.modeloMarca,
+          combustible: "Sin especificar",
         };
         finalVehiculoId = await vehiculosService.create(vehiculoData);
+        // Recargar lista de vehículos
+        await refetchVehiculos();
       }
 
       // Crear trabajo
@@ -342,11 +459,21 @@ export default function NuevoTrabajoPage() {
         trabajoData.observacionesTrabajo = pendingData.observacionesTrabajo;
       }
 
+      console.log("trabajoData final antes de crear:", trabajoData);
+
       await createTrabajo(trabajoData);
+
+      console.log("Trabajo creado exitosamente");
+
+      // Mostrar mensaje de recomendación si se guardaron datos
+      if (saveCliente || saveVehiculo) {
+        alert("✅ Orden de trabajo creada exitosamente.\n\n💡 Recordá completar los datos del cliente y su vehículo en las secciones correspondientes.");
+      }
+
       router.push("/trabajos");
     } catch (error) {
       console.error("Error al crear trabajo:", error);
-      alert("Error al crear el trabajo. Por favor intenta nuevamente.");
+      alert("❌ Error al crear la orden de trabajo. Intentá nuevamente.");
     } finally {
       setIsSubmitting(false);
       setShowSaveModal(false);
@@ -424,197 +551,119 @@ export default function NuevoTrabajoPage() {
             <div className="space-y-4">
               <h4 className="text-sm font-medium">Información Básica</h4>
 
-              {/* CLIENTE */}
+              {/* CLIENTE - Autocomplete */}
               <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">Cliente *</label>
-                  <div className="flex gap-2">
+                <label className="text-sm font-medium">Cliente *</label>
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar cliente por nombre..."
+                    value={clienteSearchText}
+                    onChange={(e) => {
+                      setClienteSearchText(e.target.value);
+                      setShowClienteSuggestions(true);
+                      setSelectedCliente(null);
+                      form.setValue("clienteId", undefined);
+                    }}
+                    onFocus={() => setShowClienteSuggestions(true)}
+                  />
+                  {selectedCliente && (
                     <Button
                       type="button"
-                      size="sm"
-                      variant={clienteMode === "existente" ? "default" : "outline"}
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
                       onClick={() => {
-                        setClienteMode("existente");
-                        form.setValue("clienteTemp", undefined);
-                      }}
-                    >
-                      Existente
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={clienteMode === "nuevo" ? "default" : "outline"}
-                      onClick={() => {
-                        setClienteMode("nuevo");
+                        setSelectedCliente(null);
+                        setClienteSearchText("");
                         form.setValue("clienteId", undefined);
                       }}
                     >
-                      <UserPlus className="h-4 w-4 mr-1" />
-                      Nuevo
+                      <X className="h-4 w-4" />
                     </Button>
-                  </div>
+                  )}
+                  {showClienteSuggestions && clientesFiltrados.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {clientesFiltrados.map((cliente) => (
+                        <button
+                          key={cliente.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-accent transition-colors"
+                          onClick={() => handleSelectCliente({
+                            id: cliente.id,
+                            nombre: cliente.nombre,
+                            apellido: cliente.apellido
+                          })}
+                        >
+                          <div className="font-medium">{cliente.nombre} {cliente.apellido}</div>
+                          {cliente.telefono && (
+                            <div className="text-sm text-muted-foreground">{cliente.telefono}</div>
+                          )}
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {clienteMode === "existente" ? (
-                  <FormField
-                    control={form.control}
-                    name="clienteId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar cliente" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {clientes.map((cliente) => (
-                              <SelectItem key={cliente.id} value={cliente.id}>
-                                {cliente.nombre} {cliente.apellido}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="clienteTemp.nombre"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Nombre *" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="clienteTemp.apellido"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Apellido *" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="clienteTemp.telefono"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Teléfono" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="clienteTemp.email"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Email" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                {!selectedCliente && clienteSearchText && (
+                  <p className="text-xs text-muted-foreground">
+                    Cliente temporal: se creará como "{clienteSearchText}"
+                  </p>
                 )}
               </div>
 
-              {/* VEHÍCULO */}
+              {/* VEHÍCULO - Autocomplete */}
               <div className="space-y-3 p-4 border rounded-lg bg-muted/30">
-                <div className="flex items-center justify-between">
-                  <label className="text-sm font-medium">Vehículo *</label>
-                  <div className="flex gap-2">
+                <label className="text-sm font-medium">Vehículo *</label>
+                <div className="relative">
+                  <Input
+                    placeholder="Buscar vehículo por patente o modelo..."
+                    value={vehiculoSearchText}
+                    onChange={(e) => {
+                      setVehiculoSearchText(e.target.value);
+                      setShowVehiculoSuggestions(true);
+                      setSelectedVehiculo(null);
+                      form.setValue("vehiculoId", undefined);
+                    }}
+                    onFocus={() => setShowVehiculoSuggestions(true)}
+                  />
+                  {selectedVehiculo && (
                     <Button
                       type="button"
-                      size="sm"
-                      variant={vehiculoMode === "existente" ? "default" : "outline"}
+                      variant="ghost"
+                      size="icon"
+                      className="absolute right-0 top-0 h-full"
                       onClick={() => {
-                        setVehiculoMode("existente");
-                        form.setValue("vehiculoTemp", undefined);
-                      }}
-                    >
-                      Existente
-                    </Button>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant={vehiculoMode === "nuevo" ? "default" : "outline"}
-                      onClick={() => {
-                        setVehiculoMode("nuevo");
+                        setSelectedVehiculo(null);
+                        setVehiculoSearchText("");
                         form.setValue("vehiculoId", undefined);
                       }}
                     >
-                      <Car className="h-4 w-4 mr-1" />
-                      Nuevo
+                      <X className="h-4 w-4" />
                     </Button>
-                  </div>
+                  )}
+                  {showVehiculoSuggestions && vehiculosFiltrados.length > 0 && (
+                    <div className="absolute z-10 w-full mt-1 bg-popover border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      {vehiculosFiltrados.map((vehiculo) => (
+                        <button
+                          key={vehiculo.id}
+                          type="button"
+                          className="w-full text-left px-4 py-2 hover:bg-accent transition-colors"
+                          onClick={() => handleSelectVehiculo({
+                            id: vehiculo.id,
+                            patente: vehiculo.patente,
+                            modeloMarca: vehiculo.modeloMarca
+                          })}
+                        >
+                          <div className="font-medium">{vehiculo.patente}</div>
+                          <div className="text-sm text-muted-foreground">{vehiculo.modeloMarca}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
-
-                {vehiculoMode === "existente" ? (
-                  <FormField
-                    control={form.control}
-                    name="vehiculoId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <Select onValueChange={field.onChange} value={field.value}>
-                          <FormControl>
-                            <SelectTrigger>
-                              <SelectValue placeholder="Seleccionar vehículo" />
-                            </SelectTrigger>
-                          </FormControl>
-                          <SelectContent>
-                            {vehiculosFiltrados.map((vehiculo) => (
-                              <SelectItem key={vehiculo.id} value={vehiculo.id}>
-                                {vehiculo.patente} - {vehiculo.modeloMarca}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
-                ) : (
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                    <FormField
-                      control={form.control}
-                      name="vehiculoTemp.patente"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Patente *" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                    <FormField
-                      control={form.control}
-                      name="vehiculoTemp.modeloMarca"
-                      render={({ field }) => (
-                        <FormItem>
-                          <FormControl>
-                            <Input placeholder="Modelo/Marca *" {...field} />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )}
-                    />
-                  </div>
+                {!selectedVehiculo && vehiculoSearchText && (
+                  <p className="text-xs text-muted-foreground">
+                    Vehículo temporal: se creará como "{vehiculoSearchText}"
+                  </p>
                 )}
               </div>
 

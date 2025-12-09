@@ -163,6 +163,24 @@ service cloud.firestore {
     }
 
     // ============================================================================
+    // TENANT COUNTERS - Work order number generation
+    // ============================================================================
+
+    match /tenant-counters/{tenantId} {
+      // Read: Only users belonging to the tenant or super admin
+      allow read: if isAuthenticated() &&
+                     (isSuperAdmin() || userBelongsToTenant(tenantId));
+
+      // Create/Update: Only users belonging to the tenant can initialize or update via transactions
+      // The counter document ID must match the tenantId
+      allow create, update: if isAuthenticated() &&
+                               userBelongsToTenant(tenantId);
+
+      // Delete: Only super admin can delete counters
+      allow delete: if isSuperAdmin();
+    }
+
+    // ============================================================================
     // DEFAULT DENY ALL
     // ============================================================================
 

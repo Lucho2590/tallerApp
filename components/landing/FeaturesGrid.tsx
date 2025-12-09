@@ -175,7 +175,7 @@ export function FeaturesGrid() {
         </div>
 
         {/* Stats section */}
-        <motion.div
+        {/* <motion.div
           initial={{ opacity: 0, y: 20 }}
           whileInView={{ opacity: 1, y: 0 }}
           viewport={{ once: true }}
@@ -200,7 +200,7 @@ export function FeaturesGrid() {
             </div>
             <div className="text-xs md:text-base text-slate-400">Disponibilidad</div>
           </div>
-        </motion.div>
+        </motion.div> */}
       </div>
     </section>
   )

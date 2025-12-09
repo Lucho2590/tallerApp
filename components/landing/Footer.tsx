@@ -63,18 +63,18 @@ export function Footer() {
                 <div className="flex items-center gap-2">
                   <Mail className="h-4 w-4 text-blue-400" />
                   <a href="mailto:contacto@tallerapp.com" className="hover:text-white transition-colors">
-                    contacto@tallerapp.com
+                    lopezlucianomartin@gmail.com
                   </a>
                 </div>
                 <div className="flex items-center gap-2">
                   <Phone className="h-4 w-4 text-blue-400" />
                   <a href="tel:+54911XXXXXXXX" className="hover:text-white transition-colors">
-                    +54 911 XXXX-XXXX
+                    +54 223 505-3759
                   </a>
                 </div>
                 <div className="flex items-center gap-2">
                   <MapPin className="h-4 w-4 text-blue-400" />
-                  <span>Buenos Aires, Argentina</span>
+                  <span>Mar del Plata, Buenos Aires, Argentina</span>
                 </div>
               </div>
             </motion.div>
