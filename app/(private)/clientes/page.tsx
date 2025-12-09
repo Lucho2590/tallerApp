@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo } from "react";
+import { useState, useMemo, Fragment } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import {
@@ -18,7 +18,7 @@ import {
 } from "lucide-react";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
-import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
+import { useTenant } from "@/contexts/TenantContext";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Cliente } from "@/types";
 import { Button } from "@/components/ui/button";
@@ -57,11 +57,14 @@ export default function ClientesPage() {
   const { currentTenant } = useTenant(); // 🏢 OBTENER TENANT ACTUAL
   const { clientes, loading, error, createCliente, updateCliente, deleteCliente } = useClientes();
   const { vehiculos } = useVehiculos();
+  // MVP: Límites de recursos deshabilitados
+  // const { clients: clientsLimit, loading: limitsLoading, refresh: refreshLimits } = useResourceLimits();
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [editingCliente, setEditingCliente] = useState<Cliente | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [searchTerm, setSearchTerm] = useState("");
+  // const [showLimitModal, setShowLimitModal] = useState(false);
 
   const form = useForm<ClienteFormData>({
     resolver: zodResolver(clienteSchema),
@@ -145,6 +148,12 @@ export default function ClientesPage() {
       return;
     }
 
+    // MVP: Validación de límites deshabilitada
+    // if (!editingCliente && clientsLimit.isAtLimit) {
+    //   setShowLimitModal(true);
+    //   return;
+    // }
+
     try {
       setIsSubmitting(true);
       if (editingCliente) {
@@ -188,12 +197,33 @@ export default function ClientesPage() {
     return vehiculos.filter((v) => v.clienteId === clienteId);
   };
 
+  // Mostrar loading mientras se carga
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
           <p className="text-muted-foreground">Cargando clientes...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Validar que haya un tenant seleccionado
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Users className="h-16 w-16 text-muted-foreground mx-auto" />
+          <div>
+            <h3 className="text-lg font-semibold">No hay organización seleccionada</h3>
+            <p className="text-muted-foreground">
+              Por favor, completa el proceso de onboarding o selecciona una organización.
+            </p>
+          </div>
+          <Button onClick={() => window.location.href = "/onboarding"}>
+            Ir a Onboarding
+          </Button>
         </div>
       </div>
     );
@@ -209,6 +239,16 @@ export default function ClientesPage() {
 
   return (
     <div className="space-y-6">
+      {/* MVP: Resource Limit Banner deshabilitado */}
+      {/* {clientsLimit.isNearLimit && !clientsLimit.isAtLimit && (
+        <ResourceLimitBanner
+          resourceName="clientes"
+          current={clientsLimit.current}
+          max={clientsLimit.max}
+          percentage={clientsLimit.percentage}
+        />
+      )} */}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -478,9 +518,9 @@ export default function ClientesPage() {
                 const isExpanded = expandedRows.has(cliente.id);
 
                 return (
-                  <>
+                  <Fragment key={cliente.id}>
                     {/* Fila principal del cliente */}
-                    <TableRow key={cliente.id} className="hover:bg-muted/30">
+                    <TableRow className="hover:bg-muted/30">
                       <TableCell>
                         <Button
                           variant="ghost"
@@ -659,13 +699,14 @@ export default function ClientesPage() {
                         </TableCell>
                       </TableRow>
                     )}
-                  </>
+                  </Fragment>
                 );
               })}
             </TableBody>
           </Table>
         </div>
       )}
+
     </div>
   );
 }

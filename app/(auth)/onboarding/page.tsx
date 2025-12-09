@@ -5,14 +5,12 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { Wrench, Loader2 } from "lucide-react";
+import { Wrench, Loader2, User, Building2, ArrowRight, ArrowLeft, Check } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { tenantsService } from "@/services/tenants/tenantsService";
 import { usersService } from "@/services/users/usersService";
-import { TenantRole, SubscriptionPlan } from "@/types/tenant";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
 import {
   Form,
   FormControl,
@@ -30,8 +28,21 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 
-// Schema de validación
-const onboardingSchema = z.object({
+// Schema de validación para Paso 1: Datos Personales
+const step1Schema = z.object({
+  firstName: z
+    .string()
+    .min(2, "El nombre debe tener al menos 2 caracteres")
+    .max(50, "El nombre es muy largo"),
+  lastName: z
+    .string()
+    .min(2, "El apellido debe tener al menos 2 caracteres")
+    .max(50, "El apellido es muy largo"),
+  userPhone: z.string().optional(),
+});
+
+// Schema de validación para Paso 2: Datos del Taller
+const step2Schema = z.object({
   name: z
     .string()
     .min(2, "El nombre del taller debe tener al menos 2 caracteres")
@@ -48,16 +59,24 @@ const onboardingSchema = z.object({
   }).optional(),
 });
 
+// Schema completo
+const onboardingSchema = step1Schema.merge(step2Schema);
+
 type OnboardingFormData = z.infer<typeof onboardingSchema>;
 
 export default function OnboardingPage() {
   const router = useRouter();
   const { user, authState, needsOnboarding, refreshUser } = useAuth();
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [currentStep, setCurrentStep] = useState(1);
 
   const form = useForm<OnboardingFormData>({
     resolver: zodResolver(onboardingSchema),
+    mode: "onChange",
     defaultValues: {
+      firstName: "",
+      lastName: "",
+      userPhone: "",
       name: "",
       legalName: "",
       taxId: "",
@@ -86,6 +105,26 @@ export default function OnboardingPage() {
     }
   }, [authState, needsOnboarding, router]);
 
+  // Navegar al siguiente paso
+  const handleNextStep = async () => {
+    // Validar solo los campos del paso actual
+    const fieldsToValidate: (keyof OnboardingFormData)[] =
+      currentStep === 1
+        ? ['firstName', 'lastName', 'userPhone']
+        : ['name'];
+
+    const isValid = await form.trigger(fieldsToValidate);
+
+    if (isValid) {
+      setCurrentStep(2);
+    }
+  };
+
+  // Volver al paso anterior
+  const handlePrevStep = () => {
+    setCurrentStep(1);
+  };
+
   const onSubmit = async (data: OnboardingFormData) => {
     if (!user) return;
 
@@ -97,15 +136,27 @@ export default function OnboardingPage() {
         return value && value.trim() !== "" ? value : undefined;
       };
 
-      // Create tenant - filtrar undefined
+      // Actualizar datos personales del usuario
+      console.log("🔧 [Onboarding] Updating user personal data...");
+      const userData: any = {
+        nombre: data.firstName,
+        apellido: data.lastName,
+      };
+      if (cleanValue(data.userPhone)) {
+        userData.telefono = data.userPhone;
+      }
+      await usersService.updateUser(user.id, userData);
+      console.log("✅ [Onboarding] User personal data updated");
+
+      // Create tenant - simple and clean
       const tenantData: any = {
         name: data.name,
         email: user.email,
-        plan: SubscriptionPlan.TRIAL,
         active: true,
         timezone: "America/Argentina/Buenos_Aires",
         locale: "es-AR",
         currency: "ARS",
+        ownerId: user.id, // Set the owner
       };
 
       // Solo agregar campos opcionales si tienen valor
@@ -124,19 +175,27 @@ export default function OnboardingPage() {
         };
       }
 
+      console.log("🔧 [Onboarding] Creating tenant with data:", tenantData);
       const tenantId = await tenantsService.createTenant(tenantData);
+      console.log("✅ [Onboarding] Tenant created with ID:", tenantId);
 
-      // Add tenant to user as OWNER
-      await usersService.addTenantToUser(user.id, tenantId, TenantRole.OWNER);
+      // Set tenant ID on user
+      console.log("🔧 [Onboarding] Setting tenant on user:", user.id);
+      await usersService.setUserTenant(user.id, tenantId);
+      console.log("✅ [Onboarding] Tenant set on user");
 
-      // Refresh user data and wait for React state to update
+      // Refresh user data to reload tenant information
+      console.log("🔧 [Onboarding] Refreshing user data...");
       await refreshUser();
+      console.log("✅ [Onboarding] User data refreshed");
 
-      // Small delay to ensure state updates propagate
-      await new Promise(resolve => setTimeout(resolve, 100));
+      // Wait for context to fully update
+      console.log("⏳ [Onboarding] Waiting 500ms for context update...");
+      await new Promise(resolve => setTimeout(resolve, 500));
 
       // Redirect to dashboard
-      router.push("/dashboard");
+      console.log("🔄 [Onboarding] Redirecting to dashboard...");
+      window.location.href = "/dashboard";
     } catch (error) {
       console.error("Error creating tenant:", error);
       alert("Error al crear el taller. Por favor intenta nuevamente.");
@@ -170,171 +229,287 @@ export default function OnboardingPage() {
             ¡Bienvenido a TallerApp!
           </CardTitle>
           <CardDescription className="text-base">
-            Para comenzar, necesitamos algunos datos sobre tu taller.
-            <br />
-            Podrás editar esta información más tarde.
+            {currentStep === 1
+              ? "Primero, contanos un poco sobre vos"
+              : "Ahora, configurá tu taller"}
           </CardDescription>
+
+          {/* Progress Indicator */}
+          <div className="flex items-center justify-center gap-2 pt-4">
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+                  currentStep === 1
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-primary bg-primary text-primary-foreground"
+                }`}
+              >
+                {currentStep > 1 ? (
+                  <Check className="h-4 w-4" />
+                ) : (
+                  <User className="h-4 w-4" />
+                )}
+              </div>
+              <span className="text-sm font-medium">Datos Personales</span>
+            </div>
+
+            <div className="w-12 h-0.5 bg-border mx-2" />
+
+            <div className="flex items-center gap-2">
+              <div
+                className={`flex items-center justify-center w-8 h-8 rounded-full border-2 transition-all ${
+                  currentStep === 2
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "border-border bg-background text-muted-foreground"
+                }`}
+              >
+                <Building2 className="h-4 w-4" />
+              </div>
+              <span className="text-sm font-medium text-muted-foreground">
+                Datos del Taller
+              </span>
+            </div>
+          </div>
         </CardHeader>
 
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-              {/* Información básica */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Información Básica</h3>
+            <form className="space-y-6">
+              {/* PASO 1: Datos Personales */}
+              {currentStep === 1 && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Tus Datos Personales</h3>
 
-                <FormField
-                  control={form.control}
-                  name="name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Nombre del Taller *</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="Ej: Taller Mecánico González"
-                          {...field}
-                        />
-                      </FormControl>
-                      <FormDescription>
-                        El nombre comercial de tu taller
-                      </FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="firstName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nombre *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Tu nombre" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="legalName"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Razón Social (opcional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Nombre legal de la empresa" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={form.control}
+                        name="lastName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Apellido *</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Tu apellido" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                  <FormField
-                    control={form.control}
-                    name="taxId"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>CUIT (opcional)</FormLabel>
-                        <FormControl>
-                          <Input placeholder="XX-XXXXXXXX-X" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name="userPhone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono (opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: +54 11 1234-5678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <Button
+                    type="button"
+                    onClick={handleNextStep}
+                    className="w-full"
+                    size="lg"
+                  >
+                    Siguiente
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Button>
                 </div>
+              )}
 
-                <FormField
-                  control={form.control}
-                  name="phone"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Teléfono (opcional)</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej: +54 11 1234-5678" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
+              {/* PASO 2: Datos del Taller */}
+              {currentStep === 2 && (
+                <div className="space-y-6 animate-in fade-in slide-in-from-right duration-300">
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Información del Taller</h3>
 
-              {/* Dirección */}
-              <div className="space-y-4">
-                <h3 className="text-lg font-semibold">Dirección (opcional)</h3>
+                    <FormField
+                      control={form.control}
+                      name="name"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Nombre del Taller *</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="Ej: Taller Mecánico González"
+                              {...field}
+                            />
+                          </FormControl>
+                          <FormDescription>
+                            El nombre comercial de tu taller
+                          </FormDescription>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
 
-                <FormField
-                  control={form.control}
-                  name="address.street"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Calle</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej: Av. Corrientes 1234" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="legalName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Razón Social (opcional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nombre legal" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <FormField
-                    control={form.control}
-                    name="address.city"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Ciudad</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ej: Buenos Aires" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                      <FormField
+                        control={form.control}
+                        name="taxId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>CUIT (opcional)</FormLabel>
+                            <FormControl>
+                              <Input placeholder="XX-XXXXXXXX-X" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
 
-                  <FormField
-                    control={form.control}
-                    name="address.state"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Provincia</FormLabel>
-                        <FormControl>
-                          <Input placeholder="Ej: Buenos Aires" {...field} />
-                        </FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )}
-                  />
+                    <FormField
+                      control={form.control}
+                      name="phone"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Teléfono del Taller (opcional)</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: +54 11 1234-5678" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Dirección */}
+                  <div className="space-y-4">
+                    <h3 className="text-lg font-semibold">Dirección (opcional)</h3>
+
+                    <FormField
+                      control={form.control}
+                      name="address.street"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Calle</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: Av. Corrientes 1234" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <FormField
+                        control={form.control}
+                        name="address.city"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Ciudad</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ej: Buenos Aires" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+
+                      <FormField
+                        control={form.control}
+                        name="address.state"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Provincia</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Ej: Buenos Aires" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                    </div>
+
+                    <FormField
+                      control={form.control}
+                      name="address.zipCode"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Código Postal</FormLabel>
+                          <FormControl>
+                            <Input placeholder="Ej: C1043" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  {/* Info message */}
+                  <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
+                    <p className="text-sm text-muted-foreground">
+                      <strong>¡Empieza gratis!</strong> Tendrás acceso completo a todas las funciones sin límites.
+                    </p>
+                  </div>
+
+                  {/* Botones */}
+                  <div className="flex gap-4">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      onClick={handlePrevStep}
+                      className="flex-1"
+                      size="lg"
+                    >
+                      <ArrowLeft className="mr-2 h-4 w-4" />
+                      Atrás
+                    </Button>
+                    <Button
+                      type="button"
+                      onClick={form.handleSubmit(onSubmit)}
+                      className="flex-1"
+                      size="lg"
+                      disabled={isSubmitting}
+                    >
+                      {isSubmitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creando...
+                        </>
+                      ) : (
+                        "Crear mi Taller"
+                      )}
+                    </Button>
+                  </div>
                 </div>
-
-                <FormField
-                  control={form.control}
-                  name="address.zipCode"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Código Postal</FormLabel>
-                      <FormControl>
-                        <Input placeholder="Ej: C1043" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              {/* Trial info */}
-              <div className="p-4 bg-primary/5 border border-primary/20 rounded-lg">
-                <p className="text-sm text-muted-foreground">
-                  <strong>Plan de Prueba:</strong> Comenzarás con una prueba gratuita
-                  que incluye acceso a todas las funciones básicas.
-                </p>
-              </div>
-
-              {/* Submit button */}
-              <Button
-                type="submit"
-                className="w-full"
-                size="lg"
-                disabled={isSubmitting}
-              >
-                {isSubmitting ? (
-                  <>
-                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    Creando tu taller...
-                  </>
-                ) : (
-                  "Crear mi Taller"
-                )}
-              </Button>
+              )}
             </form>
           </Form>
         </CardContent>

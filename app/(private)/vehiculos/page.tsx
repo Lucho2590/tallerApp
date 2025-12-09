@@ -23,6 +23,9 @@ import { useVehiculos } from "@/hooks/vehiculos/useVehiculos";
 import { useClientes } from "@/hooks/clientes/useClientes";
 import { useTrabajos } from "@/hooks/trabajos/useTrabajos";
 import { useTenant } from "@/contexts/TenantContext"; // 🏢 MULTITENANT
+import { useResourceLimits } from "@/hooks/useResourceLimits";
+import { ResourceLimitBanner } from "@/components/ResourceLimitBanner";
+import { ResourceLimitModal } from "@/components/ResourceLimitModal";
 import { vehiculoSchema, type VehiculoFormData } from "@/lib/validations/vehiculo";
 import { clienteSchema, type ClienteFormData } from "@/lib/validations/cliente";
 import { Vehiculo, EstadoTrabajo } from "@/types";
@@ -349,9 +352,12 @@ export default function VehiculosPage() {
     useVehiculos();
   const { clientes, createCliente } = useClientes();
   const { trabajos } = useTrabajos();
+  // MVP: Límites de recursos deshabilitados
+  // const { vehicles: vehiclesLimit, loading: limitsLoading, refresh: refreshLimits } = useResourceLimits();
   const [searchTerm, setSearchTerm] = useState("");
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isDuenoDialogOpen, setIsDuenoDialogOpen] = useState(false);
+  // const [showLimitModal, setShowLimitModal] = useState(false);
   const [editingVehiculo, setEditingVehiculo] = useState<Vehiculo | null>(null);
   const [vehiculoParaDueno, setVehiculoParaDueno] = useState<Vehiculo | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -497,6 +503,12 @@ export default function VehiculosPage() {
       return;
     }
 
+    // MVP: Validación de límites deshabilitada
+    // if (!editingVehiculo && vehiclesLimit.isAtLimit) {
+    //   setShowLimitModal(true);
+    //   return;
+    // }
+
     setIsSubmitting(true);
     try {
       const vehiculoData = {
@@ -622,6 +634,25 @@ export default function VehiculosPage() {
     );
   }
 
+  if (!currentTenant) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="text-center space-y-4">
+          <Car className="h-16 w-16 text-muted-foreground mx-auto" />
+          <div>
+            <h3 className="text-lg font-semibold">No hay organización seleccionada</h3>
+            <p className="text-muted-foreground">
+              Por favor, completa el proceso de onboarding o selecciona una organización.
+            </p>
+          </div>
+          <Button onClick={() => window.location.href = "/onboarding"}>
+            Ir a Onboarding
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
   if (error) {
     return (
       <div className="flex items-center justify-center min-h-[400px]">
@@ -632,6 +663,16 @@ export default function VehiculosPage() {
 
   return (
     <div className="space-y-6">
+      {/* MVP: Banner de advertencia de límite deshabilitado */}
+      {/* {vehiclesLimit.isNearLimit && !vehiclesLimit.isAtLimit && (
+        <ResourceLimitBanner
+          resourceName="vehículos"
+          current={vehiclesLimit.current}
+          max={vehiclesLimit.max}
+          percentage={vehiclesLimit.percentage}
+        />
+      )} */}
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -1229,6 +1270,15 @@ export default function VehiculosPage() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* MVP: Modal de límite alcanzado deshabilitado */}
+      {/* <ResourceLimitModal
+        open={showLimitModal}
+        onOpenChange={setShowLimitModal}
+        resourceName="vehículos"
+        current={vehiclesLimit.current}
+        max={vehiclesLimit.max}
+      /> */}
     </div>
   );
 }

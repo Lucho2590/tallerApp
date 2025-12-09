@@ -16,7 +16,8 @@ import {
 import { useProductos } from "@/hooks/productos/useProductos";
 import { useTenant } from "@/contexts/TenantContext";
 import { productoSchema, type ProductoFormData } from "@/lib/validations/producto";
-import { Producto } from "@/types";
+import { Producto, TenantModule } from "@/types";
+import { ModuleGuard } from "@/components/guards/ModuleGuard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -240,17 +241,19 @@ export default function ProductosPage() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Package className="h-8 w-8 text-primary" />
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
-            <p className="text-muted-foreground">
-              Gestiona tu inventario de repuestos y productos
-            </p>
-          </div>
+    // MVP: ModuleGuard deshabilitado - Todos los módulos disponibles
+    // <ModuleGuard module={TenantModule.INVENTORY}>
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Package className="h-8 w-8 text-primary" />
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Productos</h1>
+              <p className="text-muted-foreground">
+                Gestiona tu inventario de repuestos y productos
+              </p>
+            </div>
         </div>
 
         <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
@@ -706,6 +709,7 @@ export default function ProductosPage() {
           </Table>
         </div>
       )}
-    </div>
+      </div>
+    // </ModuleGuard>
   );
 }

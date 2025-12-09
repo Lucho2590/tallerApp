@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, use } from "react";
 import { useForm, useFieldArray } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
@@ -81,9 +81,9 @@ function EstadoBadge({ estado }: { estado: EstadoTrabajo }) {
   );
 }
 
-export default function EditarTrabajoPage({ params }: { params: { id: string } }) {
+export default function EditarTrabajoPage({ params }: { params: Promise<{ id: string }> }) {
   const router = useRouter();
-  const trabajoId = params.id;
+  const { id: trabajoId } = use(params);
 
   const { getById, updateTrabajo, cambiarEstado } = useTrabajos();
   const { clientes } = useClientes();
