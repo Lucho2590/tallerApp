@@ -16,8 +16,7 @@ import {
 import { useCaja } from "@/hooks/caja/useCaja";
 import { useTenant } from "@/contexts/TenantContext";
 import { movimientoCajaSchema, type MovimientoCajaFormData } from "@/lib/validations/movimientoCaja";
-import { MovimientoCaja, TipoPago, TenantModule } from "@/types";
-import { ModuleGuard } from "@/components/guards/ModuleGuard";
+import { MovimientoCaja, TipoPago } from "@/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -207,9 +206,7 @@ export default function CajaPage() {
   }
 
   return (
-    // MVP: ModuleGuard deshabilitado - Todos los módulos disponibles
-    // <ModuleGuard module={TenantModule.INVOICING}>
-      <div className="space-y-6">
+    <div className="space-y-6">
         {/* Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -633,7 +630,6 @@ export default function CajaPage() {
           </Table>
         </div>
       )}
-      </div>
-    // </ModuleGuard>
+    </div>
   );
 }

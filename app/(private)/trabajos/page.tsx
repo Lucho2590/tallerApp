@@ -169,14 +169,19 @@ export default function TrabajosPage() {
   };
 
   // Obtener nombre del cliente
-  const getNombreCliente = (clienteId: string) => {
+  const getNombreCliente = (clienteId?: string, clienteTemp?: any) => {
+    if (!clienteId && clienteTemp) {
+      return `${clienteTemp.nombre} ${clienteTemp.apellido}`;
+    }
+    if (!clienteId) return "Sin cliente";
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente) return "Cliente no encontrado";
     return `${cliente.nombre} ${cliente.apellido}`;
   };
 
   // Obtener datos del vehículo
-  const getVehiculo = (vehiculoId: string) => {
+  const getVehiculo = (vehiculoId?: string) => {
+    if (!vehiculoId) return undefined;
     return vehiculos.find((v) => v.id === vehiculoId);
   };
 
@@ -302,7 +307,7 @@ export default function TrabajosPage() {
                     <TableCell>
                       <div className="flex items-center gap-1">
                         <User className="h-3 w-3" />
-                        {getNombreCliente(trabajo.clienteId)}
+                        {getNombreCliente(trabajo.clienteId, trabajo.clienteTemp)}
                       </div>
                     </TableCell>
                     <TableCell>

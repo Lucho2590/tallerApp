@@ -292,7 +292,14 @@ export default function EditarTrabajoPage({ params }: { params: Promise<{ id: st
   };
 
   // Obtener nombre del cliente
-  const getNombreCliente = (clienteId: string) => {
+  const getNombreCliente = (clienteId?: string) => {
+    if (!clienteId) {
+      // Cliente temporal
+      if (trabajo?.clienteTemp) {
+        return `${trabajo.clienteTemp.nombre} ${trabajo.clienteTemp.apellido}`;
+      }
+      return "Sin cliente";
+    }
     const cliente = clientes.find((c) => c.id === clienteId);
     if (!cliente) return "Cliente no encontrado";
     return `${cliente.nombre} ${cliente.apellido}`;
