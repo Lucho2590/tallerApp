@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -14,9 +14,20 @@ import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle }
 
 export default function RegisterPage() {
   const router = useRouter();
-  const { signUp, signInWithGoogle } = useAuth();
+  const { signUp, signInWithGoogle, authState, needsOnboarding } = useAuth();
   const [error, setError] = useState<string>("");
   const [loading, setLoading] = useState(false);
+
+  // Redirect if already authenticated
+  useEffect(() => {
+    if (authState === "authenticated") {
+      if (needsOnboarding) {
+        router.push("/onboarding");
+      } else {
+        router.push("/dashboard");
+      }
+    }
+  }, [authState, needsOnboarding, router]);
 
   const {
     register,
@@ -31,9 +42,10 @@ export default function RegisterPage() {
       setLoading(true);
       setError("");
       await signUp(data.email, data.password, data.nombre, data.apellido);
-      router.push("/dashboard");
+      // El redirect se maneja en el useEffect
     } catch (err: any) {
       console.error(err);
+      setLoading(false);
       if (err.code === "auth/email-already-in-use") {
         setError("Este email ya está registrado");
       } else if (err.code === "auth/weak-password") {
@@ -41,8 +53,6 @@ export default function RegisterPage() {
       } else {
         setError("Error al registrarse. Intenta nuevamente");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -51,18 +61,35 @@ export default function RegisterPage() {
       setLoading(true);
       setError("");
       await signInWithGoogle();
-      router.push("/dashboard");
+      // NO establecemos loading = false aquí
+      // El authState manejará el estado de carga
     } catch (err: any) {
       console.error(err);
+      // Solo desactivamos loading si hay un error
+      setLoading(false);
       if (err.code === "auth/popup-closed-by-user") {
         setError("Registro cancelado");
       } else {
         setError("Error al registrarse con Google. Intenta nuevamente");
       }
-    } finally {
-      setLoading(false);
     }
   };
+
+  // Show loading when authenticated and preparing (redirect happening)
+  // O cuando se está autenticando
+  if (authState === "authenticated" || (authState === "loading" && loading)) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-4">
+        <div className="text-center">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
+          <p className="text-lg font-medium">
+            {authState === "authenticated" ? "Preparando tu cuenta..." : "Creando cuenta..."}
+          </p>
+          <p className="text-sm text-muted-foreground mt-2">Un momento por favor</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex min-h-screen items-center justify-center p-4">

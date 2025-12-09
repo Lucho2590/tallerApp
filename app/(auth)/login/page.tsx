@@ -62,26 +62,30 @@ export default function LoginPage() {
       setLoading(true);
       setError("");
       await signInWithGoogle();
-      // El redirect se maneja en el useEffect
+      // NO establecemos loading = false aquí
+      // El authState manejará el estado de carga
     } catch (err: any) {
       console.error(err);
+      // Solo desactivamos loading si hay un error
+      setLoading(false);
       if (err.code === "auth/popup-closed-by-user") {
         setError("Inicio de sesión cancelado");
       } else {
         setError("Error al iniciar sesión con Google. Intenta nuevamente");
       }
-    } finally {
-      setLoading(false);
     }
   };
 
   // Show loading when authenticated and preparing (redirect happening)
-  if (authState === "authenticated") {
+  // O cuando se está autenticando con Google
+  if (authState === "authenticated" || (authState === "loading" && loading)) {
     return (
       <div className="flex min-h-screen items-center justify-center p-4">
         <div className="text-center">
           <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4" />
-          <p className="text-lg font-medium">Preparando tu usuario...</p>
+          <p className="text-lg font-medium">
+            {authState === "authenticated" ? "Preparando tu usuario..." : "Autenticando..."}
+          </p>
           <p className="text-sm text-muted-foreground mt-2">Un momento por favor</p>
         </div>
       </div>
